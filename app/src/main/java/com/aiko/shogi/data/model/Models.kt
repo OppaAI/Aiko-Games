@@ -22,6 +22,9 @@ data class GameState(
     val mode: String = "vs_ai",
     val ai_comment: String? = null,
     val engine: String? = null,
+    val clock_black_ms: Long? = null,
+    val clock_white_ms: Long? = null,
+    val byoyomi_ms: Long? = null,
 )
 
 @Serializable

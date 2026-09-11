@@ -517,6 +517,32 @@ private fun GameBoard(
     val selectedHand = (state.selected as? Selection.Hand)?.piece
     val canInteract = !state.loading && game.status == "playing" && game.turn == "black"
 
+    // Local countdown of the side to move, re-based on every server state.
+    // Server remains authoritative; this is display only.
+    var tickMs by remember(game.sfen, game.turn, game.last_move) {
+        mutableStateOf(
+            if (game.turn == "black") game.clock_black_ms else game.clock_white_ms,
+        )
+    }
+    LaunchedEffect(game.sfen, game.turn, game.last_move, game.status) {
+        if (game.status != "playing" || tickMs == null) return@LaunchedEffect
+        val start = android.os.SystemClock.elapsedRealtime()
+        val base = tickMs ?: return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(500)
+            val left = base - (android.os.SystemClock.elapsedRealtime() - start)
+            tickMs = maxOf(0L, left)
+            if (left <= 0L) break
+        }
+    }
+    fun fmtClock(ms: Long?): String {
+        if (ms == null) return "--:--"
+        val s = ms / 1000
+        return "%d:%02d".format(s / 60, s % 60)
+    }
+    val blackClock = if (game.turn == "black") tickMs else game.clock_black_ms
+    val whiteClock = if (game.turn == "white") tickMs else game.clock_white_ms
+
     Text(
         buildString {
             append(if (game.turn == "black") "Your turn" else "Aiko's turn")
@@ -527,6 +553,14 @@ private fun GameBoard(
         fontWeight = FontWeight.Medium,
         color = ShoujoText,
     )
+    if (game.clock_black_ms != null || game.clock_white_ms != null) {
+        Text(
+            "⏱ You ${fmtClock(blackClock)} · Aiko ${fmtClock(whiteClock)}" +
+                (game.byoyomi_ms?.let { " · +${it / 1000}s/move" } ?: ""),
+            style = MaterialTheme.typography.bodySmall,
+            color = ShoujoText.copy(alpha = 0.85f),
+        )
+    }
     game.ai_comment?.let {
         Text(it, style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.85f))
     }
@@ -630,6 +664,8 @@ private fun GameBoard(
                     "checkmate" -> "Checkmate!"
                     "stalemate" -> "Stalemate"
                     "draw" -> "Draw"
+                    "timeout" -> "Time! ⏰"
+                    "resigned" -> "Resigned"
                     else -> game.status
                 },
                 fontWeight = FontWeight.Bold,
