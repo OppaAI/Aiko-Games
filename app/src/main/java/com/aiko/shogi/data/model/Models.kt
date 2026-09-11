@@ -39,6 +39,13 @@ data class EngineStatus(
 )
 
 @Serializable
+data class WarmupResponse(
+    val warmed: Boolean = false,
+    val reason: String? = null,
+    val error: String? = null,
+)
+
+@Serializable
 data class ResignResponse(
     val status: String = "",
     val message: String = "",
