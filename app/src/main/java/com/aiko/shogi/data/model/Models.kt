@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class StartRequest(
     val mode: String = "vs_ai",
+    val difficulty: String? = null,
 )
 
 @Serializable

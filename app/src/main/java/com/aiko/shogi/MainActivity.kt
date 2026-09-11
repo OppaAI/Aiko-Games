@@ -198,6 +198,7 @@ fun ShogiApp(
                 },
                 onRules = { screen = Screen.Rules },
                 onRefreshEngine = { vm.refreshEngine() },
+                onDifficulty = { vm.setDifficulty(it) }
             )
             Screen.Rules -> RulesScreen(onBack = { screen = Screen.Lobby })
             Screen.Game -> GameBoard(
@@ -226,6 +227,7 @@ private fun Lobby(
     onStart: () -> Unit,
     onRules: () -> Unit,
     onRefreshEngine: () -> Unit,
+    onDifficulty: (String) -> Unit,
 ) {
     var editing by remember { mutableStateOf(false) }
     var draft by remember(baseUrl) { mutableStateOf(baseUrl) }
@@ -280,6 +282,26 @@ private fun Lobby(
         } else {
             TextButton(onClick = { editing = true }) {
                 Text("🔗 Server: ${ServerConfig.displayHost(baseUrl)}")
+            }
+        }
+
+        // Difficulty Selector
+        Text("Difficulty:", style = MaterialTheme.typography.labelLarge, color = ShoujoText)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            listOf("easy", "medium", "hard").forEach { level ->
+                val selected = state.difficulty == level
+                if (selected) {
+                    Button(onClick = { }) {
+                        Text(level.replaceFirstChar { it.uppercase() })
+                    }
+                } else {
+                    OutlinedButton(onClick = { onDifficulty(level) }) {
+                        Text(level.replaceFirstChar { it.uppercase() })
+                    }
+                }
             }
         }
 

@@ -32,6 +32,7 @@ data class ShogiUiState(
     val selected: Selection? = null,
     val promoteChoice: PromoteChoice? = null,
     val engineOnline: Boolean? = null,
+    val difficulty: String = "easy",
     val inGame: Boolean = false,
 )
 
@@ -85,11 +86,15 @@ class ShogiViewModel(
         }
     }
 
+    fun setDifficulty(level: String) {
+        _ui.update { it.copy(difficulty = level) }
+    }
+
     fun startGame() {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
             try {
-                val g = api.start(StartRequest(mode = "vs_ai"))
+                val g = api.start(StartRequest(mode = "vs_ai", difficulty = _ui.value.difficulty))
                 val legal = runCatching { api.legalMoves().moves }.getOrDefault(emptyList())
                 _ui.update {
                     it.copy(
