@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -68,6 +69,8 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
+
+enum class Screen { Lobby, Rules, Game }
 
 class MainActivity : ComponentActivity() {
 
@@ -125,10 +128,18 @@ fun ShogiApp(
     modifier: Modifier = Modifier,
 ) {
     val state by vm.ui.collectAsState()
+    var screen by remember { mutableStateOf(Screen.Lobby) }
+
     LaunchedEffect(Unit) { vm.refreshEngine() }
 
-    // Promote dialog
-    state.promoteChoice?.let { choice ->
+    // Keep screen in sync when a game starts / ends from ViewModel
+    LaunchedEffect(state.inGame) {
+        if (state.inGame) screen = Screen.Game
+        else if (screen == Screen.Game) screen = Screen.Lobby
+    }
+
+    // Promote dialog (only meaningful during a game)
+    state.promoteChoice?.let {
         AlertDialog(
             onDismissRequest = { vm.dismissPromote() },
             title = { Text("Promote?") },
@@ -166,18 +177,22 @@ fun ShogiApp(
             style = MaterialTheme.typography.bodySmall,
             color = ShoujoText.copy(alpha = 0.7f),
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(Modifier = Modifier.height(8.dp))
 
-        if (!state.inGame) {
-            Lobby(
+        when (screen) {
+            Screen.Lobby -> Lobby(
                 state = state,
                 baseUrl = baseUrl,
                 onSaveUrl = onSaveUrl,
-                onStart = { vm.startGame() },
+                onStart = {
+                    vm.startGame()
+                    // screen flips to Game via inGame LaunchedEffect
+                },
+                onRules = { screen = Screen.Rules },
                 onRefreshEngine = { vm.refreshEngine() },
             )
-        } else {
-            GameBoard(
+            Screen.Rules -> RulesScreen(onBack = { screen = Screen.Lobby })
+            Screen.Game -> GameBoard(
                 state = state,
                 hints = vm.hintSquares(),
                 last = vm.lastMoveSquares(),
@@ -201,6 +216,7 @@ private fun Lobby(
     baseUrl: String,
     onSaveUrl: (String) -> Unit,
     onStart: () -> Unit,
+    onRules: () -> Unit,
     onRefreshEngine: () -> Unit,
 ) {
     var editing by remember { mutableStateOf(false) }
@@ -247,8 +263,17 @@ private fun Lobby(
         if (state.loading) {
             CircularProgressIndicator()
         } else {
-            Button(onClick = onStart, modifier = Modifier.fillMaxWidth(0.8f)) {
+            Button(
+                onClick = onStart,
+                modifier = Modifier.fillMaxWidth(0.85f),
+            ) {
                 Text("Start vs Aiko")
+            }
+            OutlinedButton(
+                onClick = onRules,
+                modifier = Modifier.fillMaxWidth(0.85f),
+            ) {
+                Text("📖 Rules & How to Play")
             }
         }
         Text(
@@ -257,6 +282,117 @@ private fun Lobby(
             color = ShoujoText.copy(alpha = 0.8f),
             textAlign = TextAlign.Center,
         )
+    }
+}
+
+@Composable
+private fun RulesScreen(onBack: () -> Unit) {
+    val scroll = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(scroll),
+        horizontalAlignment = Alignment.Start,
+    ) {
+        TextButton(onClick = onBack) { Text("← Back") }
+
+        RulesSection("What is Shogi?") {
+            Text(
+                "Shogi (将棋) is Japanese chess. The goal is to checkmate the opponent’s King (玉). " +
+                    "Unlike Western chess, captured pieces join your hand and can be dropped back onto the board as your own.",
+            )
+        }
+
+        RulesSection("Board & sides") {
+            Text("• 9×9 board.\n" +
+                "• You are 先手 (Black) and move first.\n" +
+                "• Aiko is 後手 (White).\n" +
+                "• Pieces face the opponent; promoted pieces keep their side’s color.")
+        }
+
+        RulesSection("Pieces") {
+            Text(
+                "歩 Pawn — one square forward; promotes to と (tokin, moves like Gold).\n" +
+                    "香 Lance — any number forward; promotes to 成香 (Gold-like).\n" +
+                    "桂 Knight — two forward + one side; jumps; promotes to 成桂 (Gold-like).\n" +
+                    "銀 Silver — forward and all diagonals; promotes to 成銀 (Gold-like).\n" +
+                    "金 Gold — forward, sides, and forward-diagonals (no back-diagonals).\n" +
+                    "角 Bishop — any diagonal; promotes to 馬 (Dragon Horse: Bishop + adjacent).\n" +
+                    "飛 Rook — any orthogonal; promotes to 龍 (Dragon King: Rook + adjacent).\n" +
+                    "玉 King — one square any direction.",
+            )
+        }
+
+        RulesSection("Promotion (成)") {
+            Text(
+                "The three ranks farthest from you are the promotion zone.\n" +
+                    "If a piece moves into, out of, or within that zone, you may often promote.\n" +
+                    "Some moves force promotion (e.g. Pawn/Lance/Knight that would have no legal move next).\n" +
+                    "In this app: when both options are legal, a dialog asks 成 Promote or 不成 Stay.",
+            )
+        }
+
+        RulesSection("Captures & drops (持ち駒)") {
+            Text(
+                "• Capture by moving onto an enemy piece; it goes to your hand.\n" +
+                    "• On your turn you may either move a board piece or drop a hand piece on an empty square.\n" +
+                    "• Drops use USI like B*5e (Bishop drop on 5e).\n" +
+                    "• Nifu: you cannot drop a Pawn on a file that already has your unpromoted Pawn.\n" +
+                    "• You cannot drop a Pawn for immediate checkmate (打ち歩詰め).\n" +
+                    "• Knight/Lance/Pawn cannot be dropped where they would have no forward move.",
+            )
+        }
+
+        RulesSection("How to play in this app") {
+            Text(
+                "1. Set your Aiko-chan server URL if needed.\n" +
+                    "2. Tap Start vs Aiko.\n" +
+                    "3. Board move: tap your piece → highlighted squares → tap destination.\n" +
+                    "4. Drop: tap a piece in Your hand → highlighted squares → tap empty square.\n" +
+                    "5. If promotion is optional, choose 成 or 不成.\n" +
+                    "6. Aiko replies automatically (YaneuraOu when available).\n" +
+                    "7. Resign returns to the lobby.",
+            )
+        }
+
+        RulesSection("Winning") {
+            Text(
+                "Checkmate (詰み): the King is in check and has no legal escape, capture, or block.\n" +
+                    "Other endings (stalemate / draw rules) are reported by the server when they occur.",
+            )
+        }
+
+        Spacer(Modifier = Modifier.height(16.dp))
+        Button(
+            onClick = onBack,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp),
+        ) {
+            Text("Back to lobby")
+        }
+    }
+}
+
+@Composable
+private fun RulesSection(title: String, body: @Composable () -> Unit) {
+    Spacer(modifier = Modifier.height(12.dp))
+    Text(
+        title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = ShoujoText,
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+            .padding(12.dp),
+    ) {
+        Column {
+            body()
+        }
     }
 }
 
@@ -351,7 +487,6 @@ private fun GameBoard(
     }
     Spacer(modifier = Modifier.height(6.dp))
 
-    // Opponent (White / Aiko) hand — top
     HandTray(
         label = "Aiko's hand (後手)",
         pieces = whiteHand,
@@ -433,7 +568,6 @@ private fun GameBoard(
 
     Spacer(modifier = Modifier.height(6.dp))
 
-    // Your (Black) hand — bottom, tappable for drops
     HandTray(
         label = "Your hand (先手) — tap piece, then square to drop",
         pieces = blackHand,
@@ -442,7 +576,7 @@ private fun GameBoard(
         onPiece = onHandPiece,
     )
 
-    Spacer(modifier = Modifier.height(12.dp))
+    Spacer(Modifier = Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = onResign) { Text("Resign") }
         if (game.status != "playing") {
