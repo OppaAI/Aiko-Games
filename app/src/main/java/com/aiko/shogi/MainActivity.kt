@@ -35,6 +35,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -73,6 +75,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 enum class Screen { Lobby, Rules, Game }
@@ -502,6 +505,86 @@ private fun HandTray(
 }
 
 @Composable
+private fun AikoDialogue(
+    comment: String?,
+    enabled: Boolean,
+) {
+    val context = LocalContext.current
+    var soundOn by remember { mutableStateOf(true) }
+
+    // Device TTS — speaks Aiko's lines aloud. Comments are English.
+    val ttsHolder = remember { arrayOfNulls<android.speech.tts.TextToSpeech>(1) }
+    val tts = remember {
+        android.speech.tts.TextToSpeech(context.applicationContext) { status ->
+            if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                runCatching { ttsHolder[0]?.language = Locale.ENGLISH }
+            }
+        }.also { ttsHolder[0] = it }
+    }
+    DisposableEffect(tts) {
+        onDispose {
+            runCatching { tts.stop() }
+            runCatching { tts.shutdown() }
+        }
+    }
+    fun speakable(raw: String): String {
+        // TTS reads emoji names aloud ("alarm clock"); strip them for speech only.
+        return raw.replace(Regex("[\\u2190-\\u2BFF\\uFE0F\\u200D\\u2600-\\u27BF\\u2B00-\\u2BFF\\uD800-\\uDFFF]"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+    fun speak(text: String) {
+        val say = speakable(text)
+        if (say.isBlank()) return
+        runCatching {
+            tts.language = Locale.ENGLISH
+            tts.speak(say, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "aiko-dialogue")
+        }
+    }
+
+    // Auto-speak each new line while sound is on. Tap the box to replay.
+    LaunchedEffect(comment) {
+        if (soundOn && !comment.isNullOrBlank() && enabled) {
+            // Small delay so rapid move pairs don't talk over each other.
+            kotlinx.coroutines.delay(350)
+            speak(comment)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White.copy(alpha = 0.75f), RoundedCornerShape(12.dp))
+            .border(1.dp, BoardLine.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .clickable(enabled = !comment.isNullOrBlank()) {
+                comment?.let { speak(it) }
+            }
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            Text("🐱", fontSize = 22.sp)
+            Spacer(modifier = Modifier.size(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Aiko",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = ShoujoText,
+                )
+                Text(
+                    comment ?: "…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ShoujoText,
+                )
+            }
+            TextButton(onClick = { soundOn = !soundOn }) {
+                Text(if (soundOn) "🔊" else "🔇", fontSize = 18.sp)
+            }
+        }
+    }
+}
+
+@Composable
 private fun GameBoard(
     state: ShogiUiState,
     hints: Set<Pair<Int, Int>>,
@@ -561,14 +644,10 @@ private fun GameBoard(
             color = ShoujoText.copy(alpha = 0.85f),
         )
     }
-    game.ai_comment?.let {
-        Text(it, style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.85f))
-    }
     Spacer(modifier = Modifier.height(6.dp))
 
     HandTray(
-        label = "Aiko's hand (後手)",
-        pieces = whiteHand,
+        label = "Aiko's hand (後手)",        pieces = whiteHand,
         selectedPiece = null,
         enabled = false,
         onPiece = {},
@@ -653,6 +732,13 @@ private fun GameBoard(
         selectedPiece = selectedHand,
         enabled = canInteract,
         onPiece = onHandPiece,
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    AikoDialogue(
+        comment = game.ai_comment,
+        enabled = !state.loading,
     )
 
     Spacer(modifier = Modifier.height(12.dp))
