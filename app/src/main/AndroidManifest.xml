@@ -3,8 +3,8 @@
 
     <!-- cleartext on purpose: Tailnet IPs are http-only; WireGuard stays encrypted -->
     <application
-        android:icon="@drawable/ic_launcher"
-        android:roundIcon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.AikoShogi"
         android:label="Aiko Shogi"
         android:allowBackup="true"
