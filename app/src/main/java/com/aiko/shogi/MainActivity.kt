@@ -130,7 +130,10 @@ fun ShogiApp(
     val state by vm.ui.collectAsState()
     var screen by remember { mutableStateOf(Screen.Lobby) }
 
-    LaunchedEffect(Unit) { vm.refreshEngine() }
+    LaunchedEffect(Unit) {
+        vm.refreshEngine()
+        vm.warmupEngine()
+    }
 
     // Keep screen in sync when a game starts / ends from ViewModel
     LaunchedEffect(state.inGame) {
@@ -177,7 +180,7 @@ fun ShogiApp(
             style = MaterialTheme.typography.bodySmall,
             color = ShoujoText.copy(alpha = 0.7f),
         )
-        Spacer(Modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         when (screen) {
             Screen.Lobby -> Lobby(
@@ -362,7 +365,7 @@ private fun RulesScreen(onBack: () -> Unit) {
             )
         }
 
-        Spacer(Modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = onBack,
             modifier = Modifier
@@ -576,7 +579,7 @@ private fun GameBoard(
         onPiece = onHandPiece,
     )
 
-    Spacer(Modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = onResign) { Text("Resign") }
         if (game.status != "playing") {
