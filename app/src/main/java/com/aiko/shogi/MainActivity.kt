@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,8 +22,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -35,7 +37,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,9 +45,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,7 +56,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aiko.shogi.data.SfenBoard
 import com.aiko.shogi.data.ServerConfig
+import com.aiko.shogi.data.remote.GoApi
 import com.aiko.shogi.data.remote.ShogiApi
+import com.aiko.shogi.ui.GoUiState
+import com.aiko.shogi.ui.GoViewModel
 import com.aiko.shogi.ui.Selection
 import com.aiko.shogi.ui.ShogiUiState
 import com.aiko.shogi.ui.ShogiViewModel
@@ -75,10 +79,15 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-enum class Screen { Lobby, Rules, Game }
+enum class Screen {
+    Lobby,
+    ShogiRules,
+    GoRules,
+    ShogiGame,
+    GoGame,
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -88,19 +97,33 @@ class MainActivity : ComponentActivity() {
         setContent {
             AikoShogiTheme {
                 var baseUrl by remember { mutableStateOf(ServerConfig.get(this@MainActivity)) }
-                val api = remember(baseUrl) { buildApi(baseUrl) }
-                val vm: ShogiViewModel = viewModel(
-                    key = baseUrl,
+                val retrofit = remember(baseUrl) { buildRetrofit(baseUrl) }
+                val shogiApi = remember(retrofit) { retrofit.create(ShogiApi::class.java) }
+                val goApi = remember(retrofit) { retrofit.create(GoApi::class.java) }
+
+                val shogiVm: ShogiViewModel = viewModel(
+                    key = "shogi-$baseUrl",
                     factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                            return ShogiViewModel(api) as T
+                            return ShogiViewModel(shogiApi) as T
                         }
                     },
                 )
+                val goVm: GoViewModel = viewModel(
+                    key = "go-$baseUrl",
+                    factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                            return GoViewModel(goApi) as T
+                        }
+                    },
+                )
+
                 Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
-                    ShogiApp(
-                        vm = vm,
+                    GamesApp(
+                        shogiVm = shogiVm,
+                        goVm = goVm,
                         baseUrl = baseUrl,
                         onSaveUrl = { raw ->
                             baseUrl = ServerConfig.set(this@MainActivity, raw)
@@ -112,11 +135,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun buildApi(baseUrl: String): ShogiApi {
+    private fun buildRetrofit(baseUrl: String): Retrofit {
         val json = Json { ignoreUnknownKeys = true; isLenient = true }
         val client = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
             .build()
         return Retrofit.Builder()
@@ -124,48 +147,47 @@ class MainActivity : ComponentActivity() {
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-            .create(ShogiApi::class.java)
     }
 }
 
 @Composable
-fun ShogiApp(
-    vm: ShogiViewModel,
+fun GamesApp(
+    shogiVm: ShogiViewModel,
+    goVm: GoViewModel,
     baseUrl: String,
     onSaveUrl: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val state by vm.ui.collectAsState()
+    val shogi by shogiVm.ui.collectAsState()
+    val go by goVm.ui.collectAsState()
     var screen by remember { mutableStateOf(Screen.Lobby) }
 
     LaunchedEffect(baseUrl) {
-        vm.refreshEngine()
-        vm.warmupEngine()
+        shogiVm.refreshEngine()
+        shogiVm.warmupEngine()
+        goVm.refreshEngine()
+        goVm.warmupEngine()
     }
 
-    // Keep screen in sync when a game starts / ends from ViewModel
-    LaunchedEffect(state.inGame) {
-        if (state.inGame) screen = Screen.Game
-        else if (screen == Screen.Game) screen = Screen.Lobby
+    LaunchedEffect(shogi.inGame) {
+        if (shogi.inGame) screen = Screen.ShogiGame
+        else if (screen == Screen.ShogiGame) screen = Screen.Lobby
+    }
+    LaunchedEffect(go.inGame) {
+        if (go.inGame) screen = Screen.GoGame
+        else if (screen == Screen.GoGame) screen = Screen.Lobby
     }
 
-    // Promote dialog (only meaningful during a game)
-    state.promoteChoice?.let {
+    shogi.promoteChoice?.let {
         AlertDialog(
-            onDismissRequest = { vm.dismissPromote() },
+            onDismissRequest = { shogiVm.dismissPromote() },
             title = { Text("Promote?") },
-            text = {
-                Text("This piece can promote (成). Choose promote or stay as-is.")
-            },
+            text = { Text("This piece can promote (成). Choose promote or stay as-is.") },
             confirmButton = {
-                Button(onClick = { vm.confirmPromote(true) }) {
-                    Text("成 Promote")
-                }
+                Button(onClick = { shogiVm.confirmPromote(true) }) { Text("成 Promote") }
             },
             dismissButton = {
-                OutlinedButton(onClick = { vm.confirmPromote(false) }) {
-                    Text("不成 Stay")
-                }
+                OutlinedButton(onClick = { shogiVm.confirmPromote(false) }) { Text("不成 Stay") }
             },
         )
     }
@@ -178,13 +200,13 @@ fun ShogiApp(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            "Aiko Shogi ♟️",
+            "Aiko Games ♟️",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = ShoujoText,
         )
         Text(
-            "vs Aiko · USI · ${ServerConfig.displayHost(baseUrl)}",
+            "vs Aiko · ${ServerConfig.displayHost(baseUrl)}",
             style = MaterialTheme.typography.bodySmall,
             color = ShoujoText.copy(alpha = 0.7f),
         )
@@ -192,75 +214,114 @@ fun ShogiApp(
 
         when (screen) {
             Screen.Lobby -> Lobby(
-                state = state,
+                shogi = shogi,
+                go = go,
                 baseUrl = baseUrl,
                 onSaveUrl = onSaveUrl,
-                onStart = {
-                    vm.startGame()
-                    // screen flips to Game via inGame LaunchedEffect
+                onStartShogi = { shogiVm.startGame() },
+                onStartGo = { goVm.startGame() },
+                onShogiRules = { screen = Screen.ShogiRules },
+                onGoRules = { screen = Screen.GoRules },
+                onRefresh = {
+                    shogiVm.refreshEngine()
+                    goVm.refreshEngine()
                 },
-                onRules = { screen = Screen.Rules },
-                onRefreshEngine = { vm.refreshEngine() },
-                onDifficulty = { vm.setDifficulty(it) }
+                onShogiDifficulty = { shogiVm.setDifficulty(it) },
+                onGoDifficulty = { goVm.setDifficulty(it) },
+                onGoSize = { goVm.setBoardSize(it) },
             )
-            Screen.Rules -> RulesScreen(onBack = { screen = Screen.Lobby })
-            Screen.Game -> GameBoard(
-                state = state,
-                hints = vm.hintSquares(),
-                last = vm.lastMoveSquares(),
-                onSquare = { r, c -> vm.onSquareTap(r, c) },
-                onHandPiece = { vm.onHandPieceTap(it) },
-                onResign = { vm.resign() },
+            Screen.ShogiRules -> ShogiRulesScreen(onBack = { screen = Screen.Lobby })
+            Screen.GoRules -> GoRulesScreen(onBack = { screen = Screen.Lobby })
+            Screen.ShogiGame -> ShogiGameBoard(
+                state = shogi,
+                hints = shogiVm.hintSquares(),
+                last = shogiVm.lastMoveSquares(),
+                onSquare = { r, c -> shogiVm.onSquareTap(r, c) },
+                onHandPiece = { shogiVm.onHandPieceTap(it) },
+                onResign = { shogiVm.resign() },
+            )
+            Screen.GoGame -> GoGameBoard(
+                state = go,
+                hints = goVm.legalHintSquares(),
+                last = goVm.lastMoveSquare(),
+                onTap = { r, c -> goVm.onIntersectionTap(r, c) },
+                onPass = { goVm.pass() },
+                onResign = { goVm.resign() },
             )
         }
 
-        state.error?.let { err ->
+        val err = shogi.error ?: go.error
+        err?.let { e ->
             Spacer(modifier = Modifier.height(8.dp))
-            Text(err, color = Color(0xFFC62828), textAlign = TextAlign.Center)
-            TextButton(onClick = { vm.clearError() }) { Text("Dismiss") }
+            Text(e, color = Color(0xFFC62828), textAlign = TextAlign.Center)
+            TextButton(onClick = {
+                shogiVm.clearError()
+                goVm.clearError()
+            }) { Text("Dismiss") }
         }
     }
 }
 
 @Composable
 private fun Lobby(
-    state: ShogiUiState,
+    shogi: ShogiUiState,
+    go: GoUiState,
     baseUrl: String,
     onSaveUrl: (String) -> Unit,
-    onStart: () -> Unit,
-    onRules: () -> Unit,
-    onRefreshEngine: () -> Unit,
-    onDifficulty: (String) -> Unit,
+    onStartShogi: () -> Unit,
+    onStartGo: () -> Unit,
+    onShogiRules: () -> Unit,
+    onGoRules: () -> Unit,
+    onRefresh: () -> Unit,
+    onShogiDifficulty: (String) -> Unit,
+    onGoDifficulty: (String) -> Unit,
+    onGoSize: (Int) -> Unit,
 ) {
     var editing by remember { mutableStateOf(false) }
     var draft by remember(baseUrl) { mutableStateOf(baseUrl) }
+    val scroll = rememberScrollState()
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(scroll),
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
-
         Card(
             shape = RoundedCornerShape(40.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-            modifier = Modifier.padding(bottom = 16.dp)
         ) {
             Image(
                 painter = painterResource(R.drawable.ic_launcher),
-                contentDescription = "Aiko Shogi",
-                modifier = Modifier.size(120.dp),
-                contentScale = ContentScale.Crop
+                contentDescription = "Aiko",
+                modifier = Modifier.size(100.dp),
+                contentScale = ContentScale.Crop,
             )
         }
 
-        val eng = when (state.engineOnline) {
-            true -> "YaneuraOu online ✅"
-            false -> "Engine offline — casual AI"
-            null -> "Checking engine…"
-        }
-        Text(eng, color = ShoujoText)
+        Text(
+            buildString {
+                append("Shogi: ")
+                append(
+                    when (shogi.engineOnline) {
+                        true -> "YaneuraOu ✅"
+                        false -> "casual"
+                        null -> "…"
+                    },
+                )
+                append("  ·  Go: ")
+                append(
+                    when (go.engineOnline) {
+                        true -> "KataGo ✅"
+                        false -> "casual"
+                        null -> "…"
+                    },
+                )
+            },
+            color = ShoujoText,
+            style = MaterialTheme.typography.bodySmall,
+        )
 
         if (editing) {
             OutlinedTextField(
@@ -275,7 +336,7 @@ private fun Lobby(
                     if (ServerConfig.isValid(draft)) {
                         onSaveUrl(draft)
                         editing = false
-                        onRefreshEngine()
+                        onRefresh()
                     }
                 }) { Text("Save") }
                 OutlinedButton(onClick = { editing = false; draft = baseUrl }) {
@@ -288,135 +349,149 @@ private fun Lobby(
             }
         }
 
-        // Difficulty Selector
-        Text("Difficulty:", style = MaterialTheme.typography.labelLarge, color = ShoujoText)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Text("Difficulty", style = MaterialTheme.typography.labelLarge, color = ShoujoText)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("easy", "medium", "hard").forEach { level ->
-                val selected = state.difficulty == level
+                val selected = shogi.difficulty == level
                 if (selected) {
-                    Button(onClick = { }) {
-                        Text(level.replaceFirstChar { it.uppercase() })
-                    }
+                    Button(onClick = {
+                        onShogiDifficulty(level)
+                        onGoDifficulty(level)
+                    }) { Text(level.replaceFirstChar { it.uppercase() }) }
                 } else {
-                    OutlinedButton(onClick = { onDifficulty(level) }) {
-                        Text(level.replaceFirstChar { it.uppercase() })
-                    }
+                    OutlinedButton(onClick = {
+                        onShogiDifficulty(level)
+                        onGoDifficulty(level)
+                    }) { Text(level.replaceFirstChar { it.uppercase() }) }
                 }
             }
         }
 
-        if (state.loading) {
+        Text("Go board size", style = MaterialTheme.typography.labelLarge, color = ShoujoText)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(9, 13, 19).forEach { n ->
+                if (go.boardSize == n) {
+                    Button(onClick = { }) { Text("${n}×$n") }
+                } else {
+                    OutlinedButton(onClick = { onGoSize(n) }) { Text("${n}×$n") }
+                }
+            }
+        }
+
+        if (shogi.loading || go.loading) {
             CircularProgressIndicator()
         } else {
             Button(
-                onClick = onStart,
-                modifier = Modifier.fillMaxWidth(0.85f),
-            ) {
-                Text("Start vs Aiko")
-            }
+                onClick = onStartShogi,
+                modifier = Modifier.fillMaxWidth(0.9f),
+            ) { Text("Shogi (将棋) vs Aiko") }
+
+            Button(
+                onClick = onStartGo,
+                modifier = Modifier.fillMaxWidth(0.9f),
+            ) { Text("Go (囲碁) vs Aiko") }
+
             OutlinedButton(
-                onClick = onRules,
-                modifier = Modifier.fillMaxWidth(0.85f),
-            ) {
-                Text("📖 Rules & How to Play")
-            }
+                onClick = onShogiRules,
+                modifier = Modifier.fillMaxWidth(0.9f),
+            ) { Text("📖 Shogi Rules") }
+
+            OutlinedButton(
+                onClick = onGoRules,
+                modifier = Modifier.fillMaxWidth(0.9f),
+            ) { Text("📖 Go Rules") }
         }
+
         Text(
-            "You move first (先手). Tap a piece or hand piece, then a square.",
+            "Engines run on Aiko-chan. Jetson Orin Nano: casual AI is fine; " +
+                "optional YaneuraOu (Shogi) / KataGo (Go) when configured.",
             style = MaterialTheme.typography.bodySmall,
-            color = ShoujoText.copy(alpha = 0.8f),
+            color = ShoujoText.copy(alpha = 0.75f),
             textAlign = TextAlign.Center,
         )
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
 @Composable
-private fun RulesScreen(onBack: () -> Unit) {
+private fun ShogiRulesScreen(onBack: () -> Unit) {
     val scroll = rememberScrollState()
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(scroll),
+        modifier = Modifier.fillMaxWidth().verticalScroll(scroll),
         horizontalAlignment = Alignment.Start,
     ) {
         TextButton(onClick = onBack) { Text("← Back") }
-
         RulesSection("What is Shogi?") {
             Text(
-                "Shogi (将棋) is Japanese chess. The goal is to checkmate the opponent’s King (玉). " +
-                    "Unlike Western chess, captured pieces join your hand and can be dropped back onto the board as your own.",
+                "Shogi (将棋) is Japanese chess. Checkmate the King (玉). " +
+                    "Captured pieces join your hand and can be dropped as your own.",
             )
         }
-
         RulesSection("Board & sides") {
-            Text("• 9×9 board.\n" +
-                "• You are 先手 (Black) and move first.\n" +
-                "• Aiko is 後手 (White).\n" +
-                "• Pieces face the opponent; promoted pieces keep their side’s color.")
+            Text("9×9 board. You are 先手 (Black, first). Aiko is 後手 (White).")
         }
-
         RulesSection("Pieces") {
             Text(
-                "歩 Pawn — one square forward; promotes to と (tokin, moves like Gold).\n" +
-                    "香 Lance — any number forward; promotes to 成香 (Gold-like).\n" +
-                    "桂 Knight — two forward + one side; jumps; promotes to 成桂 (Gold-like).\n" +
-                    "銀 Silver — forward and all diagonals; promotes to 成銀 (Gold-like).\n" +
-                    "金 Gold — forward, sides, and forward-diagonals (no back-diagonals).\n" +
-                    "角 Bishop — any diagonal; promotes to 馬 (Dragon Horse: Bishop + adjacent).\n" +
-                    "飛 Rook — any orthogonal; promotes to 龍 (Dragon King: Rook + adjacent).\n" +
-                    "玉 King — one square any direction.",
+                "歩 Pawn · 香 Lance · 桂 Knight · 銀 Silver · 金 Gold · " +
+                    "角 Bishop · 飛 Rook · 玉 King. Many promote (成) in the far three ranks.",
             )
         }
-
-        RulesSection("Promotion (成)") {
+        RulesSection("How to play here") {
             Text(
-                "The three ranks farthest from you are the promotion zone.\n" +
-                    "If a piece moves into, out of, or within that zone, you may often promote.\n" +
-                    "Some moves force promotion (e.g. Pawn/Lance/Knight that would have no legal move next).\n" +
-                    "In this app: when both options are legal, a dialog asks 成 Promote or 不成 Stay.",
+                "Tap piece → destination. Hand tray for drops. Optional promote dialog. " +
+                    "Aiko uses YaneuraOu when available, else casual moves.",
             )
         }
+        Button(onClick = onBack, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+            Text("Back to lobby")
+        }
+    }
+}
 
-        RulesSection("Captures & drops (持ち駒)") {
+@Composable
+private fun GoRulesScreen(onBack: () -> Unit) {
+    val scroll = rememberScrollState()
+    Column(
+        modifier = Modifier.fillMaxWidth().verticalScroll(scroll),
+        horizontalAlignment = Alignment.Start,
+    ) {
+        TextButton(onClick = onBack) { Text("← Back") }
+        RulesSection("What is Go?") {
             Text(
-                "• Capture by moving onto an enemy piece; it goes to your hand.\n" +
-                    "• On your turn you may either move a board piece or drop a hand piece on an empty square.\n" +
-                    "• Drops use USI like B*5e (Bishop drop on 5e).\n" +
-                    "• Nifu: you cannot drop a Pawn on a file that already has your unpromoted Pawn.\n" +
-                    "• You cannot drop a Pawn for immediate checkmate (打ち歩詰め).\n" +
-                    "• Knight/Lance/Pawn cannot be dropped where they would have no forward move.",
+                "Go (囲碁 / 碁) is the classic territory game. Place stones on intersections. " +
+                    "Surround empty area and capture by removing the opponent’s last liberty.",
             )
         }
-
-        RulesSection("How to play in this app") {
+        RulesSection("Board sizes") {
+            Text("9×9 (fast), 13×13, or 19×19 (standard). This app defaults to 9×9.")
+        }
+        RulesSection("Basics") {
             Text(
-                "1. Set your Aiko-chan server URL if needed.\n" +
-                    "2. Tap Start vs Aiko.\n" +
-                    "3. Board move: tap your piece → highlighted squares → tap destination.\n" +
-                    "4. Drop: tap a piece in Your hand → highlighted squares → tap empty square.\n" +
-                    "5. If promotion is optional, choose 成 or 不成.\n" +
-                    "6. Aiko replies automatically (YaneuraOu when available).\n" +
-                    "7. Resign returns to the lobby.",
+                "• Black plays first.\n" +
+                    "• Capture groups with no liberties.\n" +
+                    "• Simple ko: cannot immediately recapture the single-stone ko point.\n" +
+                    "• Two consecutive passes end the game (server status: finished).\n" +
+                    "• Suicide moves are illegal.",
             )
         }
-
-        RulesSection("Winning") {
+        RulesSection("How to play here") {
             Text(
-                "Checkmate (詰み): the King is in check and has no legal escape, capture, or block.\n" +
-                    "Other endings (stalemate / draw rules) are reported by the server when they occur.",
+                "1. Pick board size and difficulty on the lobby.\n" +
+                    "2. Tap Go (囲碁) vs Aiko.\n" +
+                    "3. Tap an empty intersection (legal points can be hinted).\n" +
+                    "4. Pass when neither side wants to play.\n" +
+                    "5. Aiko replies via KataGo if configured on the server; " +
+                    "otherwise a casual legal move. KataGo is heavy for Jetson Orin Nano — " +
+                    "optional; random/casual is fine for play.",
             )
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = onBack,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp),
-        ) {
+        RulesSection("Engine note") {
+            Text(
+                "Backend: pure-Python rules + optional KataGo GTP (KATAGO_PATH / KATAGO_MODEL). " +
+                    "GNU Go is a lighter alternative for future server wiring; the app only needs /api/games/go.",
+            )
+        }
+        Button(onClick = onBack, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
             Text("Back to lobby")
         }
     }
@@ -425,23 +500,14 @@ private fun RulesScreen(onBack: () -> Unit) {
 @Composable
 private fun RulesSection(title: String, body: @Composable () -> Unit) {
     Spacer(modifier = Modifier.height(12.dp))
-    Text(
-        title,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        color = ShoujoText,
-    )
+    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ShoujoText)
     Spacer(modifier = Modifier.height(4.dp))
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
             .padding(12.dp),
-    ) {
-        Column {
-            body()
-        }
-    }
+    ) { Column { body() } }
 }
 
 @Composable
@@ -453,37 +519,20 @@ private fun HandTray(
     onPiece: (Char) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = ShoujoText.copy(alpha = 0.75f),
-        )
+        Text(label, style = MaterialTheme.typography.labelMedium, color = ShoujoText.copy(alpha = 0.75f))
         if (pieces.isEmpty()) {
-            Text(
-                "(empty)",
-                style = MaterialTheme.typography.bodySmall,
-                color = ShoujoText.copy(alpha = 0.5f),
-            )
+            Text("(empty)", style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.5f))
         } else {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 pieces.forEach { hp ->
                     val selected = selectedPiece == hp.symbol
                     Box(
                         modifier = Modifier
-                            .background(
-                                if (selected) BoardSelect else Color.White,
-                                RoundedCornerShape(8.dp),
-                            )
-                            .border(
-                                1.dp,
-                                if (selected) BoardLine else Color(0x33000000),
-                                RoundedCornerShape(8.dp),
-                            )
+                            .background(if (selected) BoardSelect else Color.White, RoundedCornerShape(8.dp))
+                            .border(1.dp, if (selected) BoardLine else Color(0x33000000), RoundedCornerShape(8.dp))
                             .clickable(enabled = enabled) { onPiece(hp.symbol) }
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center,
@@ -505,87 +554,7 @@ private fun HandTray(
 }
 
 @Composable
-private fun AikoDialogue(
-    comment: String?,
-    enabled: Boolean,
-) {
-    val context = LocalContext.current
-    var soundOn by remember { mutableStateOf(true) }
-
-    // Device TTS — speaks Aiko's lines aloud. Comments are English.
-    val ttsHolder = remember { arrayOfNulls<android.speech.tts.TextToSpeech>(1) }
-    val tts = remember {
-        android.speech.tts.TextToSpeech(context.applicationContext) { status ->
-            if (status == android.speech.tts.TextToSpeech.SUCCESS) {
-                runCatching { ttsHolder[0]?.language = Locale.ENGLISH }
-            }
-        }.also { ttsHolder[0] = it }
-    }
-    DisposableEffect(tts) {
-        onDispose {
-            runCatching { tts.stop() }
-            runCatching { tts.shutdown() }
-        }
-    }
-    fun speakable(raw: String): String {
-        // TTS reads emoji names aloud ("alarm clock"); strip them for speech only.
-        return raw.replace(Regex("[\\u2190-\\u2BFF\\uFE0F\\u200D\\u2600-\\u27BF\\u2B00-\\u2BFF\\uD800-\\uDFFF]"), "")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-    }
-    fun speak(text: String) {
-        val say = speakable(text)
-        if (say.isBlank()) return
-        runCatching {
-            tts.language = Locale.ENGLISH
-            tts.speak(say, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "aiko-dialogue")
-        }
-    }
-
-    // Auto-speak each new line while sound is on. Tap the box to replay.
-    LaunchedEffect(comment) {
-        if (soundOn && !comment.isNullOrBlank() && enabled) {
-            // Small delay so rapid move pairs don't talk over each other.
-            kotlinx.coroutines.delay(350)
-            speak(comment)
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White.copy(alpha = 0.75f), RoundedCornerShape(12.dp))
-            .border(1.dp, BoardLine.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-            .clickable(enabled = !comment.isNullOrBlank()) {
-                comment?.let { speak(it) }
-            }
-            .padding(12.dp),
-    ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Text("🐱", fontSize = 22.sp)
-            Spacer(modifier = Modifier.size(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "Aiko",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = ShoujoText,
-                )
-                Text(
-                    comment ?: "…",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = ShoujoText,
-                )
-            }
-            TextButton(onClick = { soundOn = !soundOn }) {
-                Text(if (soundOn) "🔊" else "🔇", fontSize = 18.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun GameBoard(
+private fun ShogiGameBoard(
     state: ShogiUiState,
     hints: Set<Pair<Int, Int>>,
     last: Set<Pair<Int, Int>>,
@@ -600,58 +569,20 @@ private fun GameBoard(
     val selectedHand = (state.selected as? Selection.Hand)?.piece
     val canInteract = !state.loading && game.status == "playing" && game.turn == "black"
 
-    // Local countdown of the side to move, re-based on every server state.
-    // Server remains authoritative; this is display only.
-    var tickMs by remember(game.sfen, game.turn, game.last_move) {
-        mutableStateOf(
-            if (game.turn == "black") game.clock_black_ms else game.clock_white_ms,
-        )
-    }
-    LaunchedEffect(game.sfen, game.turn, game.last_move, game.status) {
-        if (game.status != "playing" || tickMs == null) return@LaunchedEffect
-        val start = android.os.SystemClock.elapsedRealtime()
-        val base = tickMs ?: return@LaunchedEffect
-        while (true) {
-            kotlinx.coroutines.delay(500)
-            val left = base - (android.os.SystemClock.elapsedRealtime() - start)
-            tickMs = maxOf(0L, left)
-            if (left <= 0L) break
-        }
-    }
-    fun fmtClock(ms: Long?): String {
-        if (ms == null) return "--:--"
-        val s = ms / 1000
-        return "%d:%02d".format(s / 60, s % 60)
-    }
-    val blackClock = if (game.turn == "black") tickMs else game.clock_black_ms
-    val whiteClock = if (game.turn == "white") tickMs else game.clock_white_ms
-
     Text(
         buildString {
             append(if (game.turn == "black") "Your turn" else "Aiko's turn")
-            append(" · ")
-            append(game.status)
+            append(" · "); append(game.status)
             game.engine?.let { append(" · $it") }
         },
         fontWeight = FontWeight.Medium,
         color = ShoujoText,
     )
-    if (game.clock_black_ms != null || game.clock_white_ms != null) {
-        Text(
-            "⏱ You ${fmtClock(blackClock)} · Aiko ${fmtClock(whiteClock)}" +
-                (game.byoyomi_ms?.let { " · +${it / 1000}s/move" } ?: ""),
-            style = MaterialTheme.typography.bodySmall,
-            color = ShoujoText.copy(alpha = 0.85f),
-        )
+    game.ai_comment?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.85f))
     }
     Spacer(modifier = Modifier.height(6.dp))
-
-    HandTray(
-        label = "Aiko's hand (後手)",        pieces = whiteHand,
-        selectedPiece = null,
-        enabled = false,
-        onPiece = {},
-    )
+    HandTray("Aiko's hand (後手)", whiteHand, null, false) {}
     Spacer(modifier = Modifier.height(6.dp))
 
     Box(
@@ -667,15 +598,11 @@ private fun GameBoard(
                 Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     for (col in 0 until 9) {
                         val cell = grid[row][col]
-                        val sel = (state.selected as? Selection.Square)?.let {
-                            it.row == row && it.col == col
-                        } == true
-                        val hint = (row to col) in hints
-                        val lastMv = (row to col) in last
+                        val sel = (state.selected as? Selection.Square)?.let { it.row == row && it.col == col } == true
                         val bg = when {
                             sel -> BoardSelect
-                            hint -> BoardHint
-                            lastMv -> BoardLast
+                            (row to col) in hints -> BoardHint
+                            (row to col) in last -> BoardLast
                             else -> Color.Transparent
                         }
                         Box(
@@ -684,9 +611,7 @@ private fun GameBoard(
                                 .fillMaxSize()
                                 .background(bg)
                                 .border(0.5.dp, BoardLine)
-                                .clickable(enabled = canInteract) {
-                                    onSquare(row, col)
-                                },
+                                .clickable(enabled = canInteract) { onSquare(row, col) },
                             contentAlignment = Alignment.Center,
                         ) {
                             val g = SfenBoard.glyph(cell)
@@ -697,14 +622,6 @@ private fun GameBoard(
                                     fontSize = if (g.length > 1) 12.sp else 18.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (black) PieceBlack else PieceWhite,
-                                    style = if (!black) {
-                                        androidx.compose.ui.text.TextStyle(
-                                            shadow = androidx.compose.ui.graphics.Shadow(
-                                                color = PieceWhiteStroke,
-                                                blurRadius = 1f,
-                                            ),
-                                        )
-                                    } else androidx.compose.ui.text.TextStyle.Default,
                                 )
                             }
                         }
@@ -713,50 +630,137 @@ private fun GameBoard(
             }
         }
         if (state.loading) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(Color(0x44000000)),
-                contentAlignment = Alignment.Center,
-            ) {
+            Box(Modifier.fillMaxSize().background(Color(0x44000000)), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(modifier = Modifier.size(36.dp))
             }
         }
     }
 
     Spacer(modifier = Modifier.height(6.dp))
+    HandTray("Your hand (先手)", blackHand, selectedHand, canInteract, onHandPiece)
+    Spacer(modifier = Modifier.height(12.dp))
+    OutlinedButton(onClick = onResign) { Text("Resign") }
+}
 
-    HandTray(
-        label = "Your hand (先手) — tap piece, then square to drop",
-        pieces = blackHand,
-        selectedPiece = selectedHand,
-        enabled = canInteract,
-        onPiece = onHandPiece,
+@Composable
+private fun GoGameBoard(
+    state: GoUiState,
+    hints: Set<Pair<Int, Int>>,
+    last: Pair<Int, Int>?,
+    onTap: (Int, Int) -> Unit,
+    onPass: () -> Unit,
+    onResign: () -> Unit,
+) {
+    val game = state.game ?: return
+    val size = game.size
+    val stoneMap = remember(game.stones) {
+        game.stones.associate { (it.row to it.col) to it.color }
+    }
+    val canInteract = !state.loading && game.status == "playing" && game.turn == "black"
+
+    Text(
+        buildString {
+            append(if (game.turn == "black") "Your turn (Black)" else "Aiko's turn")
+            append(" · ${size}×$size · "); append(game.status)
+            game.engine?.let { append(" · $it") }
+        },
+        fontWeight = FontWeight.Medium,
+        color = ShoujoText,
     )
-
+    Text(
+        "Captures — B: ${game.captured_black}  W: ${game.captured_white}",
+        style = MaterialTheme.typography.bodySmall,
+        color = ShoujoText.copy(alpha = 0.8f),
+    )
+    game.ai_comment?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.85f))
+    }
     Spacer(modifier = Modifier.height(8.dp))
 
-    AikoDialogue(
-        comment = game.ai_comment,
-        enabled = !state.loading,
-    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .background(BoardWood, RoundedCornerShape(8.dp))
+            .border(2.dp, BoardLine, RoundedCornerShape(8.dp))
+            .padding(10.dp),
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val n = size
+            val step = size.minDimension / (n - 1).coerceAtLeast(1)
+            val stroke = BoardLine.copy(alpha = 0.85f)
+            for (i in 0 until n) {
+                val x = i * step
+                val y = i * step
+                drawLine(stroke, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.5f)
+                drawLine(stroke, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.5f)
+            }
+            // Star points for 9/13/19
+            val stars = when (n) {
+                9 -> listOf(2 to 2, 2 to 6, 6 to 2, 6 to 6, 4 to 4)
+                13 -> listOf(3 to 3, 3 to 9, 9 to 3, 9 to 9, 6 to 6)
+                19 -> listOf(3 to 3, 3 to 9, 3 to 15, 9 to 3, 9 to 9, 9 to 15, 15 to 3, 15 to 9, 15 to 15)
+                else -> emptyList()
+            }
+            for ((r, c) in stars) {
+                drawCircle(BoardLine, radius = step * 0.08f, center = Offset(c * step, r * step))
+            }
+        }
+        // Touch grid over intersections
+        Column(modifier = Modifier.fillMaxSize()) {
+            for (row in 0 until size) {
+                Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    for (col in 0 until size) {
+                        val color = stoneMap[row to col]
+                        val isHint = (row to col) in hints && color == null
+                        val isLast = last?.let { it.first == row && it.second == col } == true
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxSize()
+                                .clickable(enabled = canInteract && color == null) {
+                                    onTap(row, col)
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (isHint) {
+                                Box(
+                                    Modifier
+                                        .size(10.dp)
+                                        .background(BoardHint, CircleShape),
+                                )
+                            }
+                            if (color != null) {
+                                val fill = if (color == "black") Color(0xFF212121) else Color(0xFFF5F5F5)
+                                Box(
+                                    Modifier
+                                        .fillMaxSize(0.72f)
+                                        .background(fill, CircleShape)
+                                        .then(
+                                            if (isLast) Modifier.border(2.dp, Color(0xFFE53935), CircleShape)
+                                            else if (color == "white") Modifier.border(1.dp, BoardLine, CircleShape)
+                                            else Modifier,
+                                        ),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (state.loading) {
+            Box(Modifier.fillMaxSize().background(Color(0x44000000)), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(modifier = Modifier.size(36.dp))
+            }
+        }
+    }
 
     Spacer(modifier = Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(onClick = onPass, enabled = canInteract) { Text("Pass") }
         OutlinedButton(onClick = onResign) { Text("Resign") }
         if (game.status != "playing") {
-            Text(
-                when (game.status) {
-                    "checkmate" -> "Checkmate!"
-                    "stalemate" -> "Stalemate"
-                    "draw" -> "Draw"
-                    "timeout" -> "Time! ⏰"
-                    "resigned" -> "Resigned"
-                    else -> game.status
-                },
-                fontWeight = FontWeight.Bold,
-                color = ShoujoText,
-            )
+            Text(game.status, fontWeight = FontWeight.Bold, color = ShoujoText)
         }
     }
 }
