@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -167,7 +166,7 @@ fun ShogiApp(
             style = MaterialTheme.typography.bodySmall,
             color = ShoujoText.copy(alpha = 0.7f),
         )
-        Spacer(Modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (!state.inGame) {
             Lobby(
@@ -189,7 +188,7 @@ fun ShogiApp(
         }
 
         state.error?.let { err ->
-            Spacer(Modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(err, color = Color(0xFFC62828), textAlign = TextAlign.Center)
             TextButton(onClick = { vm.clearError() }) { Text("Dismiss") }
         }
@@ -350,7 +349,7 @@ private fun GameBoard(
     game.ai_comment?.let {
         Text(it, style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.85f))
     }
-    Spacer(Modifier = Modifier.height(6.dp))
+    Spacer(modifier = Modifier.height(6.dp))
 
     // Opponent (White / Aiko) hand — top
     HandTray(
@@ -443,7 +442,7 @@ private fun GameBoard(
         onPiece = onHandPiece,
     )
 
-    Spacer(Modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = onResign) { Text("Resign") }
         if (game.status != "playing") {
