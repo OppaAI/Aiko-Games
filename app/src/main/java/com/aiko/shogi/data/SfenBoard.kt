@@ -1,13 +1,23 @@
 package com.aiko.shogi.data
 
 /**
- * Minimal SFEN board parse for display.
- * SFEN: ranks 9→1 top to bottom; within a rank, file 9→1 left to right.
+ * Minimal SFEN board + hand parse for display.
+ * SFEN: <board> <turn> <hands> <move>
+ * Hands: e.g. "R2P" black rook + 2 pawns, "r" white rook, "-" empty.
+ * Uppercase = Black (先手), lowercase = White (後手).
  */
 data class Cell(
     val symbol: Char,
     val promoted: Boolean = false,
 )
+
+data class HandPiece(
+    val symbol: Char, // always uppercase type letter: P L N S G B R
+    val count: Int,
+    val forBlack: Boolean,
+) {
+    val usiLetter: Char get() = if (forBlack) symbol.uppercaseChar() else symbol.lowercaseChar()
+}
 
 object SfenBoard {
 
@@ -45,24 +55,59 @@ object SfenBoard {
         return grid
     }
 
+    /** Parse hand field into piece counts. */
+    fun parseHands(sfen: String): List<HandPiece> {
+        val parts = sfen.trim().split(" ")
+        val handField = parts.getOrNull(2) ?: "-"
+        if (handField == "-" || handField.isBlank()) return emptyList()
+
+        val counts = linkedMapOf<Pair<Char, Boolean>, Int>() // (type upper, forBlack) -> n
+        var i = 0
+        while (i < handField.length) {
+            var n = 0
+            while (i < handField.length && handField[i].isDigit()) {
+                n = n * 10 + (handField[i] - '0')
+                i++
+            }
+            if (i >= handField.length) break
+            val ch = handField[i]
+            i++
+            if (ch !in "PLNSGBRplnsgbr") continue
+            val forBlack = ch.isUpperCase()
+            val type = ch.uppercaseChar()
+            val key = type to forBlack
+            counts[key] = (counts[key] ?: 0) + if (n > 0) n else 1
+        }
+        return counts.map { (k, n) -> HandPiece(k.first, n, k.second) }
+    }
+
+    fun blackHand(sfen: String): List<HandPiece> =
+        parseHands(sfen).filter { it.forBlack && it.count > 0 }
+
+    fun whiteHand(sfen: String): List<HandPiece> =
+        parseHands(sfen).filter { !it.forBlack && it.count > 0 }
+
     fun glyph(cell: Cell?): String {
         if (cell == null) return ""
-        return when (cell.symbol.uppercaseChar()) {
-            'P' -> if (cell.promoted) "と" else "歩"
-            'L' -> if (cell.promoted) "成香" else "香"
-            'N' -> if (cell.promoted) "成桂" else "桂"
-            'S' -> if (cell.promoted) "成銀" else "銀"
+        return glyphFor(cell.symbol, cell.promoted)
+    }
+
+    fun glyphFor(symbol: Char, promoted: Boolean = false): String {
+        return when (symbol.uppercaseChar()) {
+            'P' -> if (promoted) "と" else "歩"
+            'L' -> if (promoted) "成香" else "香"
+            'N' -> if (promoted) "成桂" else "桂"
+            'S' -> if (promoted) "成銀" else "銀"
             'G' -> "金"
-            'B' -> if (cell.promoted) "馬" else "角"
-            'R' -> if (cell.promoted) "龍" else "飛"
+            'B' -> if (promoted) "馬" else "角"
+            'R' -> if (promoted) "龍" else "飛"
             'K' -> "玉"
-            else -> cell.symbol.toString()
+            else -> symbol.toString()
         }
     }
 
     fun isBlack(cell: Cell): Boolean = cell.symbol.isUpperCase()
 
-    /** File 9 = col 0 … file 1 = col 8; rank 9 = row 0 … rank 1 = row 8. */
     fun usiSquareToRc(sq: String): Pair<Int, Int>? {
         if (sq.length < 2) return null
         val file = sq[0]

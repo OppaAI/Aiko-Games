@@ -13,12 +13,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** Board square selection, or a hand drop piece (USI letter e.g. 'P','B'). */
+sealed class Selection {
+    data class Square(val row: Int, val col: Int) : Selection()
+    data class Hand(val piece: Char) : Selection() // uppercase type: P L N S G B R
+}
+
+data class PromoteChoice(
+    val normal: String,
+    val promoted: String,
+)
+
 data class ShogiUiState(
     val loading: Boolean = false,
     val error: String? = null,
     val game: GameState? = null,
     val legalMoves: List<String> = emptyList(),
-    val selected: Pair<Int, Int>? = null,
+    val selected: Selection? = null,
+    val promoteChoice: PromoteChoice? = null,
     val engineOnline: Boolean? = null,
     val inGame: Boolean = false,
 )
@@ -53,6 +65,7 @@ class ShogiViewModel(
                         game = g,
                         legalMoves = legal,
                         selected = null,
+                        promoteChoice = null,
                         inGame = true,
                         engineOnline = g.engine == "yaneuraou" || it.engineOnline,
                     )
@@ -65,59 +78,117 @@ class ShogiViewModel(
         }
     }
 
+    fun onHandPieceTap(piece: Char) {
+        val state = _ui.value
+        val game = state.game ?: return
+        if (game.status != "playing" || game.turn != "black" || state.loading) return
+        if (state.promoteChoice != null) return
+
+        val letter = piece.uppercaseChar()
+        val canDrop = state.legalMoves.any { it.startsWith("$letter*") || it.startsWith("${letter.lowercaseChar()}*") }
+        // Black drops use uppercase in USI typically: P*5e
+        val can = state.legalMoves.any {
+            '*' in it && it.substringBefore('*').equals(letter.toString(), ignoreCase = true)
+        }
+        if (!can && !canDrop) return
+
+        val sel = state.selected
+        if (sel is Selection.Hand && sel.piece == letter) {
+            _ui.update { it.copy(selected = null) }
+        } else {
+            _ui.update { it.copy(selected = Selection.Hand(letter), error = null) }
+        }
+    }
+
     fun onSquareTap(row: Int, col: Int) {
         val state = _ui.value
         val game = state.game ?: return
         if (game.status != "playing" || game.turn != "black") return
-        if (state.loading) return
+        if (state.loading || state.promoteChoice != null) return
 
-        val selected = state.selected
-        if (selected == null) {
-            // Select own piece if any move starts from here
-            val fromUsi = SfenBoard.rcToUsi(row, col)
-            val can = state.legalMoves.any { m ->
-                !m.contains('*') && m.length >= 4 && m.startsWith(fromUsi)
+        when (val selected = state.selected) {
+            null -> {
+                val fromUsi = SfenBoard.rcToUsi(row, col)
+                val can = state.legalMoves.any { m ->
+                    !m.contains('*') && m.length >= 4 && m.startsWith(fromUsi)
+                }
+                if (can) {
+                    _ui.update { it.copy(selected = Selection.Square(row, col), error = null) }
+                }
             }
-            if (can) {
-                _ui.update { it.copy(selected = row to col, error = null) }
-            }
-            return
-        }
 
-        if (selected.first == row && selected.second == col) {
-            _ui.update { it.copy(selected = null) }
-            return
-        }
+            is Selection.Square -> {
+                if (selected.row == row && selected.col == col) {
+                    _ui.update { it.copy(selected = null) }
+                    return
+                }
+                val fromUsi = SfenBoard.rcToUsi(selected.row, selected.col)
+                val toUsi = SfenBoard.rcToUsi(row, col)
+                val base = fromUsi + toUsi
+                val candidates = state.legalMoves.filter {
+                    it == base || it == "$base+" || it.startsWith(base)
+                }.distinct()
 
-        val fromUsi = SfenBoard.rcToUsi(selected.first, selected.second)
-        val toUsi = SfenBoard.rcToUsi(row, col)
-        val candidates = state.legalMoves.filter {
-            it.startsWith(fromUsi + toUsi) || it == fromUsi + toUsi || it == fromUsi + toUsi + "+"
-        }
-        val move = when {
-            candidates.any { it.endsWith("+") } && candidates.any { !it.endsWith("+") } ->
-                // Prefer non-promote for MVP; user can force promote later
-                candidates.first { !it.endsWith("+") }
-            candidates.isNotEmpty() -> candidates.first()
-            else -> null
-        }
-        if (move == null) {
-            // Try re-select
-            val from2 = SfenBoard.rcToUsi(row, col)
-            val can = state.legalMoves.any { m ->
-                !m.contains('*') && m.length >= 4 && m.startsWith(from2)
+                when {
+                    candidates.isEmpty() -> {
+                        val from2 = SfenBoard.rcToUsi(row, col)
+                        val can = state.legalMoves.any { m ->
+                            !m.contains('*') && m.length >= 4 && m.startsWith(from2)
+                        }
+                        _ui.update {
+                            it.copy(selected = if (can) Selection.Square(row, col) else null)
+                        }
+                    }
+                    candidates.size == 1 -> sendMove(candidates.first())
+                    candidates.any { it.endsWith("+") } && candidates.any { !it.endsWith("+") } -> {
+                        val normal = candidates.first { !it.endsWith("+") }
+                        val promoted = candidates.first { it.endsWith("+") }
+                        _ui.update {
+                            it.copy(promoteChoice = PromoteChoice(normal, promoted))
+                        }
+                    }
+                    else -> sendMove(candidates.first())
+                }
             }
-            _ui.update {
-                it.copy(selected = if (can) row to col else null)
+
+            is Selection.Hand -> {
+                val toUsi = SfenBoard.rcToUsi(row, col)
+                val letter = selected.piece.uppercaseChar()
+                val drop = state.legalMoves.firstOrNull { m ->
+                    '*' in m &&
+                        m.substringBefore('*').equals(letter.toString(), ignoreCase = true) &&
+                        m.substringAfter('*').take(2) == toUsi
+                }
+                if (drop != null) {
+                    sendMove(drop)
+                } else {
+                    // Maybe select a board piece instead
+                    val from2 = SfenBoard.rcToUsi(row, col)
+                    val can = state.legalMoves.any { m ->
+                        !m.contains('*') && m.length >= 4 && m.startsWith(from2)
+                    }
+                    _ui.update {
+                        it.copy(selected = if (can) Selection.Square(row, col) else null)
+                    }
+                }
             }
-            return
         }
-        sendMove(move)
+    }
+
+    fun confirmPromote(promote: Boolean) {
+        val choice = _ui.value.promoteChoice ?: return
+        sendMove(if (promote) choice.promoted else choice.normal)
+    }
+
+    fun dismissPromote() {
+        _ui.update { it.copy(promoteChoice = null) }
     }
 
     fun sendMove(usi: String) {
         viewModelScope.launch {
-            _ui.update { it.copy(loading = true, error = null, selected = null) }
+            _ui.update {
+                it.copy(loading = true, error = null, selected = null, promoteChoice = null)
+            }
             try {
                 val g = api.move(MoveRequest(move = usi))
                 val legal = if (g.status == "playing" && g.turn == "black") {
@@ -135,7 +206,6 @@ class ShogiViewModel(
                 _ui.update {
                     it.copy(loading = false, error = e.message ?: "Move failed")
                 }
-                // Refresh legal moves
                 runCatching {
                     val legal = api.legalMoves().moves
                     _ui.update { it.copy(legalMoves = legal) }
@@ -158,14 +228,28 @@ class ShogiViewModel(
         _ui.update { it.copy(error = null) }
     }
 
-    /** Destination squares for the current selection. */
     fun hintSquares(): Set<Pair<Int, Int>> {
-        val sel = _ui.value.selected ?: return emptySet()
-        val from = SfenBoard.rcToUsi(sel.first, sel.second)
-        return _ui.value.legalMoves.mapNotNull { m ->
-            if (m.contains('*') || m.length < 4 || !m.startsWith(from)) null
-            else SfenBoard.usiSquareToRc(m.substring(2, 4))
-        }.toSet()
+        val state = _ui.value
+        return when (val sel = state.selected) {
+            is Selection.Square -> {
+                val from = SfenBoard.rcToUsi(sel.row, sel.col)
+                state.legalMoves.mapNotNull { m ->
+                    if (m.contains('*') || m.length < 4 || !m.startsWith(from)) null
+                    else SfenBoard.usiSquareToRc(m.removeSuffix("+").substring(2, 4))
+                }.toSet()
+            }
+            is Selection.Hand -> {
+                val letter = sel.piece.uppercaseChar()
+                state.legalMoves.mapNotNull { m ->
+                    if ('*' !in m) return@mapNotNull null
+                    if (!m.substringBefore('*').equals(letter.toString(), ignoreCase = true)) {
+                        return@mapNotNull null
+                    }
+                    SfenBoard.usiSquareToRc(m.substringAfter('*').take(2))
+                }.toSet()
+            }
+            null -> emptySet()
+        }
     }
 
     fun lastMoveSquares(): Set<Pair<Int, Int>> {
