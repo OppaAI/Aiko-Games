@@ -6,6 +6,7 @@ import com.aiko.shogi.data.model.LegalMovesResponse
 import com.aiko.shogi.data.model.MoveRequest
 import com.aiko.shogi.data.model.ResignResponse
 import com.aiko.shogi.data.model.StartRequest
+import com.aiko.shogi.data.model.WarmupResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -25,6 +26,9 @@ interface ShogiApi {
 
     @GET("api/games/shogi/engine")
     suspend fun engine(): EngineStatus
+
+    @POST("api/games/shogi/warmup")
+    suspend fun warmup(): WarmupResponse
 
     @POST("api/games/shogi/resign")
     suspend fun resign(): ResignResponse
