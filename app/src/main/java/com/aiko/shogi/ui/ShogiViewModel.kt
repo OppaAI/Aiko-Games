@@ -67,7 +67,9 @@ class ShogiViewModel(
                         selected = null,
                         promoteChoice = null,
                         inGame = true,
-                        engineOnline = g.engine == "yaneuraou" || it.engineOnline,
+                        // Reflect the current game's engine, not the previous state --
+                        // otherwise engineOnline can only ever flip to true and get stuck there.
+                        engineOnline = g.engine == "yaneuraou",
                     )
                 }
             } catch (e: Exception) {
@@ -85,12 +87,11 @@ class ShogiViewModel(
         if (state.promoteChoice != null) return
 
         val letter = piece.uppercaseChar()
-        val canDrop = state.legalMoves.any { it.startsWith("$letter*") || it.startsWith("${letter.lowercaseChar()}*") }
         // Black drops use uppercase in USI typically: P*5e
         val can = state.legalMoves.any {
             '*' in it && it.substringBefore('*').equals(letter.toString(), ignoreCase = true)
         }
-        if (!can && !canDrop) return
+        if (!can) return
 
         val sel = state.selected
         if (sel is Selection.Hand && sel.piece == letter) {
@@ -131,9 +132,8 @@ class ShogiViewModel(
 
                 when {
                     candidates.isEmpty() -> {
-                        val from2 = SfenBoard.rcToUsi(row, col)
                         val can = state.legalMoves.any { m ->
-                            !m.contains('*') && m.length >= 4 && m.startsWith(from2)
+                            !m.contains('*') && m.length >= 4 && m.startsWith(toUsi)
                         }
                         _ui.update {
                             it.copy(selected = if (can) Selection.Square(row, col) else null)
@@ -163,9 +163,8 @@ class ShogiViewModel(
                     sendMove(drop)
                 } else {
                     // Maybe select a board piece instead
-                    val from2 = SfenBoard.rcToUsi(row, col)
                     val can = state.legalMoves.any { m ->
-                        !m.contains('*') && m.length >= 4 && m.startsWith(from2)
+                        !m.contains('*') && m.length >= 4 && m.startsWith(toUsi)
                     }
                     _ui.update {
                         it.copy(selected = if (can) Selection.Square(row, col) else null)
@@ -199,7 +198,9 @@ class ShogiViewModel(
                         loading = false,
                         game = g,
                         legalMoves = legal,
-                        engineOnline = g.engine == "yaneuraou" || it.engineOnline,
+                        // Reflect the current game's engine, not the previous state --
+                        // otherwise engineOnline can only ever flip to true and get stuck there.
+                        engineOnline = g.engine == "yaneuraou",
                     )
                 }
             } catch (e: Exception) {
