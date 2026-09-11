@@ -53,6 +53,18 @@ class ShogiViewModel(
         }
     }
 
+    /**
+     * Best-effort: ask the server to pre-spawn and USI-handshake the engine
+     * now, so the first move of a game has no extra latency. Fire-and-forget
+     * — failures here are silently ignored since gameplay still falls back
+     * to on-demand spawning (and the random-move fallback) either way.
+     */
+    fun warmupEngine() {
+        viewModelScope.launch {
+            runCatching { api.warmup() }
+        }
+    }
+
     fun startGame() {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
