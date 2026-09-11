@@ -44,9 +44,3 @@ data class WarmupResponse(
     val reason: String? = null,
     val error: String? = null,
 )
-
-@Serializable
-data class ResignResponse(
-    val status: String = "",
-    val message: String = "",
-)

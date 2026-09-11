@@ -42,6 +42,26 @@ class ShogiViewModel(
     private val _ui = MutableStateFlow(ShogiUiState())
     val ui: StateFlow<ShogiUiState> = _ui.asStateFlow()
 
+    /** Prefer the server's {"detail": "..."} body over Retrofit's generic message. */
+    private fun errorMessage(e: Exception, fallback: String): String {
+        if (e is retrofit2.HttpException) {
+            runCatching {
+                val body = e.response()?.errorBody()?.string().orEmpty()
+                if (body.isNotBlank()) {
+                    val detail = runCatching {
+                        kotlinx.serialization.json.Json.parseToJsonElement(body)
+                            .let { it as? kotlinx.serialization.json.JsonObject }
+                            ?.get("detail")
+                            ?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
+                    }.getOrNull()
+                    if (!detail.isNullOrBlank()) return "HTTP ${e.code()}: $detail"
+                }
+            }
+            return "HTTP ${e.code()}: ${e.message() ?: fallback}"
+        }
+        return e.message ?: fallback
+    }
+
     fun refreshEngine() {
         viewModelScope.launch {
             try {
@@ -86,7 +106,7 @@ class ShogiViewModel(
                 }
             } catch (e: Exception) {
                 _ui.update {
-                    it.copy(loading = false, error = e.message ?: "Failed to start")
+                    it.copy(loading = false, error = errorMessage(e, "Failed to start"))
                 }
             }
         }
@@ -217,7 +237,7 @@ class ShogiViewModel(
                 }
             } catch (e: Exception) {
                 _ui.update {
-                    it.copy(loading = false, error = e.message ?: "Move failed")
+                    it.copy(loading = false, error = errorMessage(e, "Move failed"))
                 }
                 runCatching {
                     val legal = api.legalMoves().moves

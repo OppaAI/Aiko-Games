@@ -89,6 +89,10 @@ object SfenBoard {
 
     fun glyph(cell: Cell?): String {
         if (cell == null) return ""
+        // Kings: Black 玉 vs White 王 (SFEN uses K/k for both sides).
+        if (cell.symbol.uppercaseChar() == 'K') {
+            return if (isBlack(cell)) "玉" else "王"
+        }
         return glyphFor(cell.symbol, cell.promoted)
     }
 

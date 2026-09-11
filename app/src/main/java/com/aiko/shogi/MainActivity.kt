@@ -130,7 +130,7 @@ fun ShogiApp(
     val state by vm.ui.collectAsState()
     var screen by remember { mutableStateOf(Screen.Lobby) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(baseUrl) {
         vm.refreshEngine()
         vm.warmupEngine()
     }
