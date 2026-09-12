@@ -39,5 +39,8 @@ dependencies {
 
     implementation("androidx.core:core-ktx:1.17.0")
 
+    // CC0 sunfish piece/board images loaded over network (cached by Coil)
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
