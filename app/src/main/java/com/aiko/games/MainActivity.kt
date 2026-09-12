@@ -52,14 +52,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.aiko.games.data.model.KoiCard
+import com.aiko.games.data.model.KoiYaku
 import com.aiko.games.data.SfenBoard
 import com.aiko.games.data.ServerConfig
 import com.aiko.games.data.remote.GoApi
+import com.aiko.games.data.remote.KoiKoiApi
 import com.aiko.games.data.remote.ShogiApi
 import com.aiko.games.ui.GoBoardView
 import com.aiko.games.ui.GoUiState
 import com.aiko.games.ui.GoViewModel
+import com.aiko.games.ui.HanafudaBack
+import com.aiko.games.ui.HanafudaCard
+import com.aiko.games.ui.KoiKoiViewModel
+import com.aiko.games.ui.KoiUiState
 import com.aiko.games.ui.KomaImages
+import com.aiko.games.ui.monthLabel
 import com.aiko.games.ui.Selection
 import com.aiko.games.ui.ShogiUiState
 import com.aiko.games.ui.ShogiViewModel
@@ -69,9 +77,13 @@ import com.aiko.games.ui.theme.BoardLast
 import com.aiko.games.ui.theme.BoardLine
 import com.aiko.games.ui.theme.BoardSelect
 import com.aiko.games.ui.theme.BoardWood
+import com.aiko.games.ui.theme.CuteCoral
+import com.aiko.games.ui.theme.CuteMint
+import com.aiko.games.ui.theme.CuteSky
 import com.aiko.games.ui.theme.PieceBlack
 import com.aiko.games.ui.theme.PieceWhite
 import com.aiko.games.ui.theme.PieceWhiteStroke
+import com.aiko.games.ui.theme.ShoujoPink
 import com.aiko.games.ui.theme.ShoujoSoftPink
 import com.aiko.games.ui.theme.ShoujoText
 import kotlinx.coroutines.delay
@@ -87,8 +99,10 @@ enum class Screen {
     Preferences,
     ShogiRules,
     GoRules,
+    KoikoiRules,
     ShogiGame,
     GoGame,
+    KoikoiGame,
 }
 
 class MainActivity : ComponentActivity() {
@@ -104,6 +118,7 @@ class MainActivity : ComponentActivity() {
                 val retrofit = remember(baseUrl) { buildRetrofit(baseUrl) }
                 val shogiApi = remember(retrofit) { retrofit.create(ShogiApi::class.java) }
                 val goApi = remember(retrofit) { retrofit.create(GoApi::class.java) }
+                val koiApi = remember(retrofit) { retrofit.create(KoiKoiApi::class.java) }
 
                 val shogiVm: ShogiViewModel = viewModel(
                     key = "shogi-$baseUrl",
@@ -123,11 +138,21 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                 )
+                val koiVm: KoiKoiViewModel = viewModel(
+                    key = "koi-$baseUrl",
+                    factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                            return KoiKoiViewModel(koiApi) as T
+                        }
+                    },
+                )
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
                     GamesApp(
                         shogiVm = shogiVm,
                         goVm = goVm,
+                        koiVm = koiVm,
                         baseUrl = baseUrl,
                         modifier = Modifier.padding(padding),
                     )
@@ -155,11 +180,13 @@ class MainActivity : ComponentActivity() {
 fun GamesApp(
     shogiVm: ShogiViewModel,
     goVm: GoViewModel,
+    koiVm: KoiKoiViewModel,
     baseUrl: String,
     modifier: Modifier = Modifier,
 ) {
     val shogi by shogiVm.ui.collectAsState()
     val go by goVm.ui.collectAsState()
+    val koi by koiVm.ui.collectAsState()
     var screen by remember { mutableStateOf(Screen.Lobby) }
 
     LaunchedEffect(baseUrl) {
@@ -167,6 +194,8 @@ fun GamesApp(
         shogiVm.warmupEngine()
         goVm.refreshEngine()
         goVm.warmupEngine()
+        koiVm.refreshEngine()
+        koiVm.warmupEngine()
     }
 
     // Auto-enter the game when a start succeeds. Manual Back keeps the
@@ -178,6 +207,10 @@ fun GamesApp(
     LaunchedEffect(go.inGame) {
         if (go.inGame) screen = Screen.GoGame
         else if (screen == Screen.GoGame) screen = Screen.Lobby
+    }
+    LaunchedEffect(koi.inGame) {
+        if (koi.inGame) screen = Screen.KoikoiGame
+        else if (screen == Screen.KoikoiGame) screen = Screen.Lobby
     }
 
     shogi.promoteChoice?.let {
@@ -202,9 +235,9 @@ fun GamesApp(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            "Aiko Games 🎮",
+            "Aiko Games ♡🎮",
             style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.ExtraBold,
             color = ShoujoText,
         )
         Text(
@@ -218,33 +251,42 @@ fun GamesApp(
             Screen.Lobby -> Lobby(
                 shogi = shogi,
                 go = go,
+                koi = koi,
                 baseUrl = baseUrl,
                 onStartShogi = { shogiVm.startGame() },
                 onResumeShogi = { screen = Screen.ShogiGame },
                 onStartGo = { goVm.startGame() },
                 onResumeGo = { screen = Screen.GoGame },
+                onStartKoi = { koiVm.startGame() },
+                onResumeKoi = { screen = Screen.KoikoiGame },
                 onShogiRules = { screen = Screen.ShogiRules },
                 onGoRules = { screen = Screen.GoRules },
+                onKoiRules = { screen = Screen.KoikoiRules },
                 onPreferences = { screen = Screen.Preferences },
                 onRefresh = {
                     shogiVm.refreshEngine()
                     goVm.refreshEngine()
+                    koiVm.refreshEngine()
                 },
             )
             Screen.Preferences -> PreferencesScreen(
                 shogi = shogi,
                 go = go,
+                koi = koi,
                 baseUrl = baseUrl,
                 onShogiDifficulty = { shogiVm.setDifficulty(it) },
                 onGoDifficulty = { goVm.setDifficulty(it) },
+                onKoiDifficulty = { koiVm.setDifficulty(it) },
                 onShogiSide = { shogiVm.setSide(it) },
                 onGoSide = { goVm.setSide(it) },
                 onGoSize = { goVm.setBoardSize(it) },
                 onToggleGoHints = { goVm.toggleHints() },
+                onKoiMonths = { koiVm.setMonths(it) },
                 onBack = { screen = Screen.Lobby },
             )
             Screen.ShogiRules -> ShogiRulesScreen(onBack = { screen = Screen.Lobby })
             Screen.GoRules -> GoRulesScreen(onBack = { screen = Screen.Lobby })
+            Screen.KoikoiRules -> KoikoiRulesScreen(onBack = { screen = Screen.Lobby })
             Screen.ShogiGame -> ShogiGameBoard(
                 state = shogi,
                 hints = shogiVm.hintSquares(),
@@ -264,11 +306,21 @@ fun GamesApp(
                 onToggleHints = { goVm.toggleHints() },
                 onBackToLobby = { screen = Screen.Lobby },
             )
+            Screen.KoikoiGame -> KoikoiGameBoard(
+                state = koi,
+                onHandTap = { koiVm.onHandTap(it) },
+                onFieldTap = { koiVm.onFieldTap(it) },
+                onFlipTake = { koiVm.answerFlip(it) },
+                onDecide = { stop -> koiVm.decide(stop) },
+                onResign = { koiVm.resign() },
+                onBackToLobby = { screen = Screen.Lobby },
+            )
         }
 
         val labeledErrors = buildList {
             shogi.error?.let { add("Shogi" to it) }
             go.error?.let { add("Go" to it) }
+            koi.error?.let { add("Koi-Koi" to it) }
         }
         if (labeledErrors.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
@@ -277,6 +329,7 @@ fun GamesApp(
                 onDismiss = {
                     shogiVm.clearError()
                     goVm.clearError()
+                    koiVm.clearError()
                 },
             )
         }
@@ -289,13 +342,17 @@ fun GamesApp(
 private fun Lobby(
     shogi: ShogiUiState,
     go: GoUiState,
+    koi: KoiUiState,
     baseUrl: String,
     onStartShogi: () -> Unit,
     onResumeShogi: () -> Unit,
     onStartGo: () -> Unit,
     onResumeGo: () -> Unit,
+    onStartKoi: () -> Unit,
+    onResumeKoi: () -> Unit,
     onShogiRules: () -> Unit,
     onGoRules: () -> Unit,
+    onKoiRules: () -> Unit,
     onPreferences: () -> Unit,
     onRefresh: () -> Unit,
 ) {
@@ -320,16 +377,18 @@ private fun Lobby(
             )
         }
 
-        EngineStatusLine(shogi = shogi, go = go, onRefresh = onRefresh)
+        EngineStatusLine(shogi = shogi, go = go, koi = koi, onRefresh = onRefresh)
 
         // Current setup summary (details live in Preferences).
         Card(
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.75f)),
         ) {
             Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                 Text(
-                    "Shogi: ${shogi.difficulty.cap()} · ${sideLabel(shogi.side)}   |   " +
-                        "Go: ${go.difficulty.cap()} · ${goSideLabel(go.side)} · ${go.boardSize}×${go.boardSize}",
+                    "♟️ ${shogi.difficulty.cap()} · ${sideLabel(shogi.side)}   |   " +
+                        "⚫ ${go.difficulty.cap()} · ${go.boardSize}×${go.boardSize}   |   " +
+                        "🌸 ${koi.difficulty.cap()} · ${koi.months} mo",
                     style = MaterialTheme.typography.bodySmall,
                     color = ShoujoText,
                     textAlign = TextAlign.Center,
@@ -345,73 +404,89 @@ private fun Lobby(
             }
         }
 
-        // --- Shogi entry ---
+        // --- Cute game menu (Lingo-style cards) ---
         if (shogi.loading) {
             LoadingRow(label = "Starting Shogi…")
+        } else if (shogi.inGame && shogi.game != null) {
+            CuteGameCard(icon = "♟️", title = "Shogi 将棋", subtitle = "Resume vs Aiko ♡", color = CuteMint, onClick = onResumeShogi)
+            TextButton(onClick = onStartShogi) { Text("↺ New Shogi game") }
         } else {
-            if (shogi.inGame && shogi.game != null) {
-                Button(
-                    onClick = onResumeShogi,
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                ) { Text("▶ Resume Shogi vs Aiko") }
-                OutlinedButton(
-                    onClick = onStartShogi,
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                ) { Text("↺ New Shogi game") }
-            } else {
-                Button(
-                    onClick = onStartShogi,
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                ) { Text("Shogi (将棋) vs Aiko") }
-            }
+            CuteGameCard(icon = "♟️", title = "Shogi 将棋", subtitle = "vs Aiko ♡", color = CuteMint, onClick = onStartShogi)
         }
 
-        // --- Go entry (explicit resume fixes "press stays in menu" confusion) ---
         if (go.loading) {
             LoadingRow(label = "Starting Go… (server may take a moment)")
+        } else if (go.inGame && go.game != null) {
+            CuteGameCard(icon = "⚫", title = "Go 囲碁", subtitle = "Resume vs Aiko ♡", color = CuteSky, onClick = onResumeGo)
+            TextButton(onClick = onStartGo) { Text("↺ New Go game") }
         } else {
-            if (go.inGame && go.game != null) {
-                Button(
-                    onClick = onResumeGo,
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                ) { Text("▶ Resume Go vs Aiko") }
-                OutlinedButton(
-                    onClick = onStartGo,
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                ) { Text("↺ New Go game") }
-            } else {
-                Button(
-                    onClick = onStartGo,
-                    modifier = Modifier.fillMaxWidth(0.9f),
-                ) { Text("Go (囲碁) vs Aiko") }
-            }
+            CuteGameCard(icon = "⚫", title = "Go 囲碁", subtitle = "vs Aiko ♡", color = CuteSky, onClick = onStartGo)
         }
 
-        if (!shogi.loading && !go.loading) {
-            OutlinedButton(
-                onClick = onShogiRules,
-                modifier = Modifier.fillMaxWidth(0.9f),
-            ) { Text("📖 Shogi Rules") }
+        if (koi.loading) {
+            LoadingRow(label = "Dealing hanafuda… 🌸")
+        } else if (koi.inGame && koi.game != null) {
+            CuteGameCard(icon = "🌸", title = "Koi-Koi こいこい", subtitle = "Resume vs Aiko ♡", color = ShoujoPink, onClick = onResumeKoi)
+            TextButton(onClick = onStartKoi) { Text("↺ New Koi-Koi match") }
+        } else {
+            CuteGameCard(icon = "🌸", title = "Koi-Koi こいこい", subtitle = "vs Aiko ♡", color = ShoujoPink, onClick = onStartKoi)
+        }
 
-            OutlinedButton(
-                onClick = onGoRules,
-                modifier = Modifier.fillMaxWidth(0.9f),
-            ) { Text("📖 Go Rules") }
-
+        val busy = shogi.loading || go.loading || koi.loading
+        if (!busy) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(onClick = onShogiRules, modifier = Modifier.weight(1f)) { Text("📖 Shogi") }
+                OutlinedButton(onClick = onGoRules, modifier = Modifier.weight(1f)) { Text("📖 Go") }
+                OutlinedButton(onClick = onKoiRules, modifier = Modifier.weight(1f)) { Text("📖 Koi-Koi") }
+            }
             OutlinedButton(
                 onClick = onPreferences,
                 modifier = Modifier.fillMaxWidth(0.9f),
-            ) { Text("⚙️ Preferences") }
+            ) { Text("⚙️ Preferences ♡") }
         }
 
         Text(
-            "Engines run on Aiko-chan. Jetson Orin Nano: casual AI is fine; " +
-                "optional YaneuraOu (Shogi) / KataGo (Go) when configured.",
+            "Engines run on Aiko-chan ♡ Shogi: YaneuraOu when configured · " +
+                "Go: KataGo when configured · Koi-Koi: Aiko's built-in brain, always ready 🌸",
             style = MaterialTheme.typography.bodySmall,
             color = ShoujoText.copy(alpha = 0.75f),
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun CuteGameCard(
+    icon: String,
+    title: String,
+    subtitle: String,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(76.dp),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = color),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(icon, fontSize = 30.sp)
+            Spacer(modifier = Modifier.size(14.dp))
+            Column {
+                Text(text = title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = ShoujoText)
+                Text(text = subtitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ShoujoText.copy(alpha = 0.7f))
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Text("▶", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = ShoujoText.copy(alpha = 0.5f))
+        }
     }
 }
 
@@ -425,14 +500,14 @@ private fun LoadingRow(label: String) {
 }
 
 @Composable
-private fun EngineStatusLine(shogi: ShogiUiState, go: GoUiState, onRefresh: () -> Unit) {
+private fun EngineStatusLine(shogi: ShogiUiState, go: GoUiState, koi: KoiUiState, onRefresh: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             buildString {
-                append("Shogi: ")
+                append("♟️ ")
                 append(
                     when (shogi.engineOnline) {
                         true -> "YaneuraOu ✅"
@@ -440,10 +515,18 @@ private fun EngineStatusLine(shogi: ShogiUiState, go: GoUiState, onRefresh: () -
                         null -> "…"
                     },
                 )
-                append("  ·  Go: ")
+                append("  ·  ⚫ ")
                 append(
                     when (go.engineOnline) {
                         true -> "KataGo ✅"
+                        false -> "casual"
+                        null -> "…"
+                    },
+                )
+                append("  ·  🌸 ")
+                append(
+                    when (koi.engineOnline) {
+                        true -> "Aiko ✅"
                         false -> "casual"
                         null -> "…"
                     },
@@ -462,13 +545,16 @@ private fun EngineStatusLine(shogi: ShogiUiState, go: GoUiState, onRefresh: () -
 private fun PreferencesScreen(
     shogi: ShogiUiState,
     go: GoUiState,
+    koi: KoiUiState,
     baseUrl: String,
     onShogiDifficulty: (String) -> Unit,
     onGoDifficulty: (String) -> Unit,
+    onKoiDifficulty: (String) -> Unit,
     onShogiSide: (String) -> Unit,
     onGoSide: (String) -> Unit,
     onGoSize: (Int) -> Unit,
     onToggleGoHints: () -> Unit,
+    onKoiMonths: (Int) -> Unit,
     onBack: () -> Unit,
 ) {
     val scroll = rememberScrollState()
@@ -558,6 +644,31 @@ private fun PreferencesScreen(
             }
         }
 
+        PrefsCard(title = "🌸 Koi-Koi") {
+            PrefsLabel("Difficulty (default: Medium)")
+            DifficultyRow(
+                levels = koi.difficulties.ifEmpty { listOf("easy", "medium", "hard") },
+                selected = koi.difficulty,
+                onPick = onKoiDifficulty,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            PrefsLabel("Match length")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                koi.availableMonths.forEach { n ->
+                    if (koi.months == n) {
+                        Button(onClick = {}, enabled = false) { Text("$n mo") }
+                    } else {
+                        OutlinedButton(onClick = { onKoiMonths(n) }) { Text("$n mo") }
+                    }
+                }
+            }
+            Text(
+                "Months per match — 3 quick, 6 classic-short, 12 full year.",
+                style = MaterialTheme.typography.bodySmall,
+                color = ShoujoText.copy(alpha = 0.7f),
+            )
+        }
+
         Button(onClick = onBack, modifier = Modifier.fillMaxWidth(0.9f)) {
             Text("Done")
         }
@@ -569,6 +680,7 @@ private fun PreferencesScreen(
 private fun PrefsCard(title: String, body: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f)),
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1243,4 +1355,325 @@ private fun GoGameBoard(
     }
     Spacer(modifier = Modifier.height(4.dp))
     OutlinedButton(onClick = onBackToLobby) { Text("Back to lobby (keeps game)") }
+}
+
+// ---------------------------------------------------------------- Koi-Koi ---
+
+@Composable
+private fun YakuChip(yaku: KoiYaku) {
+    Box(
+        modifier = Modifier
+            .background(Color(0xFFFFF3E0), RoundedCornerShape(10.dp))
+            .border(1.dp, Color(0xFFFFB300), RoundedCornerShape(10.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("${yaku.jp} ${yaku.points}", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = ShoujoText)
+    }
+}
+
+@Composable
+private fun CapturedLine(label: String, cards: List<KoiCard>, yaku: List<KoiYaku>) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = ShoujoText.copy(alpha = 0.75f))
+            Spacer(modifier = Modifier.size(6.dp))
+            val counts = cards.groupingBy { it.kind }.eachCount()
+            val order = listOf("hikari", "tane", "tan-poetry", "tan-blue", "tan-red", "kasu")
+            val icons = mapOf("hikari" to "🌟", "tane" to "🦋", "tan-poetry" to "📝", "tan-blue" to "💙", "tan-red" to "🎀", "kasu" to "🍂")
+            Text(
+                if (counts.isEmpty()) "(empty)"
+                else order.filter { counts[it] ?: 0 > 0 }.joinToString(" ") { "${icons[it]}${counts[it]}" },
+                style = MaterialTheme.typography.bodySmall,
+                color = ShoujoText.copy(alpha = 0.8f),
+            )
+        }
+        if (yaku.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                yaku.forEach { YakuChip(it) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KoikoiGameBoard(
+    state: KoiUiState,
+    onHandTap: (Int) -> Unit,
+    onFieldTap: (Int) -> Unit,
+    onFlipTake: (List<Int>) -> Unit,
+    onDecide: (Boolean) -> Unit,
+    onResign: () -> Unit,
+    onBackToLobby: () -> Unit,
+) {
+    val game = state.game ?: return
+    val pending = game.pending
+    val deciding = pending?.kind == "decision"
+    val flipping = pending?.kind == "flip"
+    val canPlay = !state.loading && game.status == "playing" && game.turn == "you" && pending == null
+    val selected = state.selectedHand
+    val takeSets = selected?.let { hid ->
+        state.plays.firstOrNull { it.hand.id == hid }
+            ?.takes?.map { opt -> opt.map { c -> c.id } }
+    } ?: emptyList()
+    val glowIds = takeSets.flatten().toSet()
+    val flipIds = pending?.options?.flatten()?.map { it.id }?.toSet() ?: emptySet()
+    val youTotal = game.totals["you"] ?: 0
+    val aikoTotal = game.totals["aiko"] ?: 0
+
+    if (deciding) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("🌸 Yaku! ${pending.new_yaku.joinToString(", ") { it.name }}") },
+            text = {
+                Text(
+                    "Bank ${pending.would_score} pts now (×${pending.multiplier}), " +
+                        "or call koi-koi and continue — stakes double, but if Aiko " +
+                        "finishes next, SHE scores double!",
+                )
+            },
+            confirmButton = {
+                Button(onClick = { onDecide(true) }) { Text("🛑 Stop +${pending.would_score}") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { onDecide(false) }) { Text("🌸 Koi-koi!") }
+            },
+        )
+    }
+
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onBackToLobby) { Text("← Lobby") }
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            "🌸 Month ${game.month}/${game.months}",
+            fontWeight = FontWeight.ExtraBold,
+            color = ShoujoText,
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.width(64.dp))
+    }
+
+    InfoCard(
+        lines = buildList {
+            add("You $youTotal pts · Aiko $aikoTotal pts · ${if (game.oya == "you") "you deal" else "Aiko deals"} · ${game.status}")
+            if (game.status == "finished") {
+                add(
+                    when (game.winner) {
+                        "you" -> "🏆 You win the match! おめでとう!"
+                        "aiko" -> "Aiko wins the match 🌸 Good game!"
+                        else -> "Draw — good game! 🌸"
+                    },
+                )
+            }
+        },
+    )
+    game.round_result?.let { r ->
+        Spacer(modifier = Modifier.height(6.dp))
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = CuteMint),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                when {
+                    r.reason == "resigned" -> "🏳️ ${if (r.winner == "you") "Aiko" else "You"} resigned"
+                    r.winner == "draw" -> "🤝 Month drawn — no points"
+                    r.winner == "you" -> "🌸 You take the month +${r.points} (${r.base}×${r.multiplier})!"
+                    else -> "🌸 Aiko takes the month +${r.points} (${r.base}×${r.multiplier})"
+                },
+                fontWeight = FontWeight.ExtraBold,
+                color = ShoujoText,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(10.dp),
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+    AikoCommentBox(game.ai_comment)
+    Spacer(modifier = Modifier.height(6.dp))
+
+    // Aiko's side: hand backs + captured.
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("🐱", fontSize = 18.sp)
+        repeat(game.hand_aiko_count) { HanafudaBack(width = 30.dp) }
+    }
+    Spacer(modifier = Modifier.height(4.dp))
+    CapturedLine(label = "Aiko's collection", cards = game.cap_aiko, yaku = game.yaku_aiko)
+    Spacer(modifier = Modifier.height(6.dp))
+
+    // Field (table).
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1B5E20).copy(alpha = 0.85f)),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (game.field.isEmpty()) {
+                Text("✨ table clear! ✨", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+            game.field.chunked(4).forEach { rowCards ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    rowCards.forEach { c ->
+                        val glow = c.id in glowIds || c.id in flipIds
+                        val active = (canPlay && selected != null && c.id in glowIds) ||
+                            (flipping && c.id in flipIds)
+                        HanafudaCard(
+                            card = c,
+                            width = 58.dp,
+                            highlighted = glow,
+                            dimmed = (selected != null || flipping) && !glow,
+                            onClick = if (active) {
+                                { if (flipping) onFlipTake(listOf(c.id)) else onFieldTap(c.id) }
+                            } else null,
+                        )
+                    }
+                }
+            }
+        }
+    }
+    if (flipping) {
+        Spacer(modifier = Modifier.height(4.dp))
+        val flipName = pending.flip?.let { f ->
+            val (kanji, flower) = monthLabel(f.month)
+            "$flower $kanji"
+        } ?: "a card"
+        Text(
+            "🎴 Deck flipped $flipName — tap a glowing card!",
+            fontWeight = FontWeight.Bold,
+            color = ShoujoText,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+
+    // Your hand.
+    Text("Your hand ♡", style = MaterialTheme.typography.labelMedium, color = ShoujoText.copy(alpha = 0.75f))
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        game.hand_you.forEach { c ->
+            HanafudaCard(
+                card = c,
+                width = 64.dp,
+                selected = selected == c.id,
+                dimmed = !canPlay,
+                onClick = if (canPlay) {
+                    { onHandTap(c.id) }
+                } else null,
+            )
+        }
+    }
+    if (canPlay) {
+        val hint = if (selected == null) "Pick a card ♡" else "Tap a glowing field card ✨"
+        Text(hint, style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.8f))
+    } else if (game.status == "playing" && game.turn != "you" && !state.loading) {
+        Text("Aiko is thinking… 💭", style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.8f))
+    }
+    if (state.loading) {
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.size(8.dp))
+            Text("Aiko is playing… 🌸", color = ShoujoText)
+        }
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+    CapturedLine(label = "Your collection", cards = game.cap_you, yaku = game.yaku_you)
+    Spacer(modifier = Modifier.height(12.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(onClick = onBackToLobby) { Text("Lobby") }
+        OutlinedButton(onClick = onResign) { Text("Resign") }
+    }
+}
+
+@Composable
+private fun KoikoiRulesScreen(onBack: () -> Unit) {
+    val scroll = rememberScrollState()
+    Column(
+        modifier = Modifier.fillMaxWidth().verticalScroll(scroll),
+        horizontalAlignment = Alignment.Start,
+    ) {
+        TextButton(onClick = onBack) { Text("← Back") }
+        RulesSection("What is Koi-Koi? 🌸") {
+            Text(
+                "Koi-koi (こいこい) is the classic 2-player hanafuda card game. " +
+                    "Match cards by month, collect scoring combos (yaku), then press your " +
+                    "luck: bank the points or call koi-koi and play on for double!",
+            )
+        }
+        RulesSection("Cards & months") {
+            Text(
+                "48 cards: 12 months × 4. Kinds: 🌟 Hikari bright (5) · 🦋 Tane animals (9) · " +
+                    "🎀 Tanzaku ribbons (10: poetry 📝, blue 💙, plain ❤️) · 🍂 Kasu chaff (24).\n" +
+                    "A match = 8 cards dealt each + 8 on the table. Months per match " +
+                    "are set in Preferences (3 / 6 / 12).",
+            )
+        }
+        RulesSection("Your turn: play, then flip") {
+            Text(
+                "1. Play one hand card. Same-month table card? Take both! Two choices? " +
+                    "Pick one. Three on the table? Sweep all four! No match? Your card " +
+                    "joins the table.\n" +
+                    "2. Flip the deck's top card — same matching, same taking.\n" +
+                    "In this app: tap a hand card (glowing = matches), tap again to place " +
+                    "when nothing matches; tap a glowing card when the deck flip offers two.",
+            )
+        }
+        RulesSection("Yaku & points 🏆") {
+            Text(
+                "• 五光 Five Brights 10 · 四光 Four Brights (no rain) 8 · " +
+                    "雨四光 Rainy Four 7 · 三光 Three Brights (no rain) 5\n" +
+                    "• 月見酒 Moon+cup 5 · 花見酒 Curtain+cup 5 · 猪鹿蝶 Boar-Deer-Butterfly 5\n" +
+                    "• 赤短 Poetry ribbons 5 · 青短 Blue ribbons 5\n" +
+                    "• Tane 5+ = 1 (+1 each extra) · Ribbons 5+ = 1 (+1 each extra) · " +
+                    "Chaff 10+ = 1 (+1 each extra)",
+            )
+        }
+        RulesSection("Koi-koi or stop? 🛑") {
+            Text(
+                "Completing a yaku pauses the game: 🛑 Stop banks the points, or 🌸 " +
+                    "Koi-koi continues with stakes ×2 (again and again!). Danger: if Aiko " +
+                    "finishes after your koi-koi, SHE scores double. Empty hands with no " +
+                    "stop = higher yaku total takes the month (dealer wins ties).",
+            )
+        }
+        RulesSection("Months, totals & dealer") {
+            Text(
+                "Round winner's points add to their match total; winner deals (oya) next " +
+                    "month and plays first. Highest total after all months wins the match. " +
+                    "You deal the first month ♡",
+            )
+        }
+        RulesSection("How Aiko plays 🤖") {
+            Text(
+                "No external engine exists for Koi-Koi like YaneuraOu/KataGo — Aiko uses " +
+                    "a built-in brain (greedy captures, yaku hunting, koi-koi courage by " +
+                    "difficulty). Always ready, even offline from engines. Easy sometimes " +
+                    "blunders and calls wild koi-kois; hard rarely forgives.",
+            )
+        }
+        RulesSection("Card art 🎴") {
+            Text(
+                "Hanafuda card art by Louie Mantia, CC BY-SA 4.0, via Wikimedia Commons. " +
+                    "Thank you for the beautiful deck! 🌸",
+            )
+        }
+        Button(onClick = onBack, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+            Text("Back to lobby ♡")
+        }
+    }
 }
