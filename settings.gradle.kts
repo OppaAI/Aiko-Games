@@ -17,5 +17,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Aiko-Shogi"
+rootProject.name = "Aiko-Games"
 include(":app")

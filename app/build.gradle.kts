@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.aiko.shogi"
+    namespace = "com.aiko.games"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.aiko.shogi"
+        applicationId = "com.aiko.games"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
@@ -38,9 +38,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 
     implementation("androidx.core:core-ktx:1.17.0")
-
-    // CC0 sunfish piece/board images loaded over network (cached by Coil)
-    implementation("io.coil-kt:coil-compose:2.7.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

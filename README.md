@@ -1,4 +1,4 @@
-# Aiko-Shogi
+# Aiko-Games
 
 **Android companion for playing **Shogi (将棋)** and **Go (囲碁)** with Aiko — locally deployed, privacy-first.**
 
@@ -20,8 +20,8 @@ Connects to your Aiko-chan server over Tailscale:
 
 ## Features
 
-- **Lobby** — Shogi (将棋) vs Aiko · Go (囲碁) vs Aiko · separate rules pages
-- **Shared settings** — server URL, difficulty (easy/medium/hard), Go board size 9/13/19
+- **Lobby** — Shogi (将棋) vs Aiko · Go (囲碁) vs Aiko · separate rules pages · Preferences
+- **Preferences** — server URL + optional app secret, difficulty (default medium), Go board size 9/13/19
 - **Shogi** — SFEN board, hand drops, promote dialog, YaneuraOu when online
 - **Go** — intersection grid, pass/resign, captures, KataGo when online
 - **Engines on the server** — the phone never runs search; Jetson Orin Nano can use casual AI only
