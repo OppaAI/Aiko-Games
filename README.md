@@ -48,7 +48,7 @@ Connects to your Aiko-chan server over Tailscale:
 
 ## Related
 
-- [Aiko-chan](https://github.com/OppaAI/Aiko-chan) — backend (`interface/webui/shogi`, `interface/webui/go`)
+- [Aiko-chan](https://github.com/OppaAI/Aiko-chan) — backend (`interface/android_app/shogi`, `interface/android_app/go`)
 - [Aiko-Lingo](https://github.com/OppaAI/Aiko-Lingo) — Japanese learning app
 
 ## License
