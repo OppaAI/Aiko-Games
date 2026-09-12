@@ -2,6 +2,7 @@ package com.aiko.shogi.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aiko.shogi.data.ApiErrors
 import com.aiko.shogi.data.SfenBoard
 import com.aiko.shogi.data.model.GameState
 import com.aiko.shogi.data.model.MoveRequest
@@ -33,6 +34,8 @@ data class ShogiUiState(
     val promoteChoice: PromoteChoice? = null,
     val engineOnline: Boolean? = null,
     val difficulty: String = "easy",
+    val side: String = "black",
+    val difficulties: List<String> = listOf("easy", "medium", "hard"),
     val inGame: Boolean = false,
 )
 
@@ -43,31 +46,27 @@ class ShogiViewModel(
     private val _ui = MutableStateFlow(ShogiUiState())
     val ui: StateFlow<ShogiUiState> = _ui.asStateFlow()
 
-    /** Prefer the server's {"detail": "..."} body over Retrofit's generic message. */
-    private fun errorMessage(e: Exception, fallback: String): String {
-        if (e is retrofit2.HttpException) {
-            runCatching {
-                val body = e.response()?.errorBody()?.string().orEmpty()
-                if (body.isNotBlank()) {
-                    val detail = runCatching {
-                        kotlinx.serialization.json.Json.parseToJsonElement(body)
-                            .let { it as? kotlinx.serialization.json.JsonObject }
-                            ?.get("detail")
-                            ?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
-                    }.getOrNull()
-                    if (!detail.isNullOrBlank()) return "HTTP ${e.code()}: $detail"
-                }
-            }
-            return "HTTP ${e.code()}: ${e.message() ?: fallback}"
-        }
-        return e.message ?: fallback
+    /** User's color for the current/next game; the board's side to move is authoritative. */
+    fun userSide(): String = _ui.value.game?.side ?: _ui.value.side
+
+    fun isUserTurn(): Boolean {
+        val game = _ui.value.game ?: return false
+        return game.status == "playing" && game.turn == game.side
     }
+
+    private fun errorMessage(e: Exception, fallback: String): String =
+        ApiErrors.message(e, fallback)
 
     fun refreshEngine() {
         viewModelScope.launch {
             try {
                 val e = api.engine()
-                _ui.update { it.copy(engineOnline = e.yaneuraou) }
+                _ui.update {
+                    it.copy(
+                        engineOnline = e.yaneuraou,
+                        difficulties = e.difficulties.ifEmpty { it.difficulties },
+                    )
+                }
             } catch (_: Exception) {
                 _ui.update { it.copy(engineOnline = false) }
             }
@@ -87,15 +86,34 @@ class ShogiViewModel(
     }
 
     fun setDifficulty(level: String) {
-        _ui.update { it.copy(difficulty = level) }
+        val normalized = level.trim().lowercase()
+        if (normalized in _ui.value.difficulties) {
+            _ui.update { it.copy(difficulty = normalized) }
+        }
+    }
+
+    fun setSide(side: String) {
+        val normalized = side.trim().lowercase()
+        if (normalized == "black" || normalized == "white") {
+            _ui.update { it.copy(side = normalized) }
+        }
     }
 
     fun startGame() {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
             try {
-                val g = api.start(StartRequest(mode = "vs_ai", difficulty = _ui.value.difficulty))
-                val legal = runCatching { api.legalMoves().moves }.getOrDefault(emptyList())
+                val g = api.start(
+                    StartRequest(
+                        mode = "vs_ai",
+                        difficulty = _ui.value.difficulty,
+                        side = _ui.value.side,
+                    ),
+                )
+                val userSide = g.side.ifBlank { _ui.value.side }
+                val legal = if (g.status == "playing" && g.turn == userSide) {
+                    runCatching { api.legalMoves().moves }.getOrDefault(emptyList())
+                } else emptyList()
                 _ui.update {
                     it.copy(
                         loading = false,
@@ -104,6 +122,7 @@ class ShogiViewModel(
                         selected = null,
                         promoteChoice = null,
                         inGame = true,
+                        side = userSide,
                         // Reflect the current game's engine, not the previous state --
                         // otherwise engineOnline can only ever flip to true and get stuck there.
                         engineOnline = g.engine == "yaneuraou",
@@ -120,7 +139,7 @@ class ShogiViewModel(
     fun onHandPieceTap(piece: Char) {
         val state = _ui.value
         val game = state.game ?: return
-        if (game.status != "playing" || game.turn != "black" || state.loading) return
+        if (!isUserTurn() || state.loading) return
         if (state.promoteChoice != null) return
 
         val letter = piece.uppercaseChar()
@@ -141,7 +160,7 @@ class ShogiViewModel(
     fun onSquareTap(row: Int, col: Int) {
         val state = _ui.value
         val game = state.game ?: return
-        if (game.status != "playing" || game.turn != "black") return
+        if (!isUserTurn()) return
         if (state.loading || state.promoteChoice != null) return
 
         when (val selected = state.selected) {
@@ -227,7 +246,7 @@ class ShogiViewModel(
             }
             try {
                 val g = api.move(MoveRequest(move = usi))
-                val legal = if (g.status == "playing" && g.turn == "black") {
+                val legal = if (g.status == "playing" && g.turn == g.side) {
                     runCatching { api.legalMoves().moves }.getOrDefault(emptyList())
                 } else emptyList()
                 _ui.update {
@@ -256,7 +275,15 @@ class ShogiViewModel(
         viewModelScope.launch {
             runCatching { api.resign() }
             _ui.update {
-                ShogiUiState(engineOnline = it.engineOnline, inGame = false)
+                it.copy(
+                    loading = false,
+                    game = null,
+                    legalMoves = emptyList(),
+                    selected = null,
+                    promoteChoice = null,
+                    error = null,
+                    inGame = false,
+                )
             }
             refreshEngine()
         }

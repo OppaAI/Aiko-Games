@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 data class StartRequest(
     val mode: String = "vs_ai",
     val difficulty: String? = null,
+    val side: String? = "black",
 )
 
 @Serializable
@@ -20,6 +21,7 @@ data class GameState(
     val last_move: String? = null,
     val status: String = "playing",
     val mode: String = "vs_ai",
+    val side: String = "black",
     val ai_comment: String? = null,
     val engine: String? = null,
     val clock_black_ms: Long? = null,
@@ -40,6 +42,8 @@ data class EngineStatus(
     val path: String? = null,
     val movetime_ms: Int? = null,
     val fallback: String? = null,
+    val difficulty: String? = null,
+    val difficulties: List<String> = emptyList(),
 )
 
 @Serializable

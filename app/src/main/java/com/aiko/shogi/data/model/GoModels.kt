@@ -54,6 +54,7 @@ data class GoEngineStatus(
     val model: String? = null,
     val fallback: String? = null,
     val difficulty: String? = null,
+    val difficulties: List<String> = emptyList(),
     val sizes: List<Int> = emptyList(),
 )
 

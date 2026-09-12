@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -34,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,7 +44,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -231,7 +229,10 @@ fun GamesApp(
                 },
                 onShogiDifficulty = { shogiVm.setDifficulty(it) },
                 onGoDifficulty = { goVm.setDifficulty(it) },
+                onShogiSide = { shogiVm.setSide(it) },
+                onGoSide = { goVm.setSide(it) },
                 onGoSize = { goVm.setBoardSize(it) },
+                onToggleGoHints = { goVm.toggleHints() },
             )
             Screen.ShogiRules -> ShogiRulesScreen(onBack = { screen = Screen.Lobby })
             Screen.GoRules -> GoRulesScreen(onBack = { screen = Screen.Lobby })
@@ -250,13 +251,16 @@ fun GamesApp(
                 onTap = { r, c -> goVm.onIntersectionTap(r, c) },
                 onPass = { goVm.pass() },
                 onResign = { goVm.resign() },
+                onToggleHints = { goVm.toggleHints() },
             )
         }
 
-        val err = shogi.error ?: go.error
-        err?.let { e ->
+        val errors = listOfNotNull(shogi.error, go.error).distinct()
+        errors.forEach { e ->
             Spacer(modifier = Modifier.height(8.dp))
             Text(e, color = Color(0xFFC62828), textAlign = TextAlign.Center)
+        }
+        if (errors.isNotEmpty()) {
             TextButton(onClick = {
                 shogiVm.clearError()
                 goVm.clearError()
@@ -278,7 +282,10 @@ private fun Lobby(
     onRefresh: () -> Unit,
     onShogiDifficulty: (String) -> Unit,
     onGoDifficulty: (String) -> Unit,
+    onShogiSide: (String) -> Unit,
+    onGoSide: (String) -> Unit,
     onGoSize: (Int) -> Unit,
+    onToggleGoHints: () -> Unit,
 ) {
     var editing by remember { mutableStateOf(false) }
     var draft by remember(baseUrl) { mutableStateOf(baseUrl) }
@@ -352,48 +359,98 @@ private fun Lobby(
             }
         }
 
-        Text("Difficulty", style = MaterialTheme.typography.labelLarge, color = ShoujoText)
+        Text("Shogi difficulty", style = MaterialTheme.typography.labelLarge, color = ShoujoText)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("easy", "medium", "hard").forEach { level ->
+            shogi.difficulties.forEach { level ->
                 val selected = shogi.difficulty == level
                 if (selected) {
-                    Button(onClick = {
-                        onShogiDifficulty(level)
-                        onGoDifficulty(level)
-                    }) { Text(level.replaceFirstChar { it.uppercase() }) }
+                    Button(onClick = {}, enabled = false) { Text(level.replaceFirstChar { it.uppercase() }) }
                 } else {
-                    OutlinedButton(onClick = {
-                        onShogiDifficulty(level)
-                        onGoDifficulty(level)
-                    }) { Text(level.replaceFirstChar { it.uppercase() }) }
+                    OutlinedButton(onClick = { onShogiDifficulty(level) }) { Text(level.replaceFirstChar { it.uppercase() }) }
+                }
+            }
+        }
+
+        Text("Shogi side (you play)", style = MaterialTheme.typography.labelLarge, color = ShoujoText)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("black" to "先手 Black", "white" to "後手 White").forEach { (side, label) ->
+                if (shogi.side == side) {
+                    Button(onClick = {}, enabled = false) { Text(label) }
+                } else {
+                    OutlinedButton(onClick = { onShogiSide(side) }) { Text(label) }
+                }
+            }
+        }
+
+        Text("Go difficulty", style = MaterialTheme.typography.labelLarge, color = ShoujoText)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            go.difficulties.forEach { level ->
+                val selected = go.difficulty == level
+                if (selected) {
+                    Button(onClick = {}, enabled = false) { Text(level.replaceFirstChar { it.uppercase() }) }
+                } else {
+                    OutlinedButton(onClick = { onGoDifficulty(level) }) { Text(level.replaceFirstChar { it.uppercase() }) }
+                }
+            }
+        }
+
+        Text("Go side (you play)", style = MaterialTheme.typography.labelLarge, color = ShoujoText)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("black" to "Black ⚫", "white" to "White ⚪").forEach { (side, label) ->
+                if (go.side == side) {
+                    Button(onClick = {}, enabled = false) { Text(label) }
+                } else {
+                    OutlinedButton(onClick = { onGoSide(side) }) { Text(label) }
                 }
             }
         }
 
         Text("Go board size", style = MaterialTheme.typography.labelLarge, color = ShoujoText)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(9, 13, 19).forEach { n ->
+            go.availableSizes.forEach { n ->
                 if (go.boardSize == n) {
-                    Button(onClick = { }) { Text("${n}×$n") }
+                    Button(onClick = {}, enabled = false) { Text("${n}×$n") }
                 } else {
                     OutlinedButton(onClick = { onGoSize(n) }) { Text("${n}×$n") }
                 }
             }
         }
 
-        if (shogi.loading || go.loading) {
-            CircularProgressIndicator()
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Go move hints", style = MaterialTheme.typography.labelLarge, color = ShoujoText)
+            Switch(checked = go.showHints, onCheckedChange = { onToggleGoHints() })
+        }
+
+        if (shogi.loading) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.size(8.dp))
+                Text("Starting Shogi…", color = ShoujoText)
+            }
         } else {
             Button(
                 onClick = onStartShogi,
                 modifier = Modifier.fillMaxWidth(0.9f),
             ) { Text("Shogi (将棋) vs Aiko") }
+        }
 
+        if (go.loading) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.size(8.dp))
+                Text("Starting Go…", color = ShoujoText)
+            }
+        } else {
             Button(
                 onClick = onStartGo,
                 modifier = Modifier.fillMaxWidth(0.9f),
             ) { Text("Go (囲碁) vs Aiko") }
+        }
 
+        if (!shogi.loading && !go.loading) {
             OutlinedButton(
                 onClick = onShogiRules,
                 modifier = Modifier.fillMaxWidth(0.9f),
@@ -431,7 +488,7 @@ private fun ShogiRulesScreen(onBack: () -> Unit) {
             )
         }
         RulesSection("Board & sides") {
-            Text("9×9 board. You are 先手 (Black, first). Aiko is 後手 (White).")
+            Text("9×9 board. Pick your side on the lobby: 先手 (Black, first) or 後手 (White, second).")
         }
         RulesSection("Pieces") {
             Text(
@@ -442,6 +499,7 @@ private fun ShogiRulesScreen(onBack: () -> Unit) {
         RulesSection("How to play here") {
             Text(
                 "Tap piece → destination. Hand tray for drops. Optional promote dialog. " +
+                    "Clock shows remaining time when the server enables it. " +
                     "Aiko uses YaneuraOu when available, else casual moves.",
             )
         }
@@ -479,9 +537,9 @@ private fun GoRulesScreen(onBack: () -> Unit) {
         }
         RulesSection("How to play here") {
             Text(
-                "1. Pick board size and difficulty on the lobby.\n" +
+                "1. Pick board size, side, and difficulty on the lobby.\n" +
                     "2. Tap Go (囲碁) vs Aiko.\n" +
-                    "3. Tap an empty intersection (legal points can be hinted).\n" +
+                    "3. Tap an empty intersection (toggle hints on/off anytime).\n" +
                     "4. Pass when neither side wants to play.\n" +
                     "5. Aiko replies via KataGo if configured on the server; " +
                     "otherwise a casual legal move.",
@@ -534,7 +592,7 @@ private fun HandTray(
                     val url = KomaImages.handUrl(hp.symbol, hp.forBlack)
                     Box(
                         modifier = Modifier
-                            .background(if (selected) BoardSelect else Color.White, RoundedCornerShape(8.dp))
+                            .background(if (selected) BoardSelect else PieceWhite, RoundedCornerShape(8.dp))
                             .border(1.dp, if (selected) BoardLine else Color(0x33000000), RoundedCornerShape(8.dp))
                             .clickable(enabled = enabled) { onPiece(hp.symbol) }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -553,6 +611,7 @@ private fun HandTray(
                                     SfenBoard.glyphFor(hp.symbol),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp,
+                                    color = if (hp.forBlack) PieceBlack else PieceWhiteStroke,
                                 )
                             }
                             if (hp.count > 1) {
@@ -585,17 +644,39 @@ private fun ShogiGameBoard(
     val blackHand = remember(game.sfen) { SfenBoard.blackHand(game.sfen) }
     val whiteHand = remember(game.sfen) { SfenBoard.whiteHand(game.sfen) }
     val selectedHand = (state.selected as? Selection.Hand)?.piece
-    val canInteract = !state.loading && game.status == "playing" && game.turn == "black"
+    val userSide = game.side.ifBlank { "black" }
+    val canInteract = !state.loading && game.status == "playing" && game.turn == userSide
+    val youLabel = if (userSide == "black") "先手 (Black)" else "後手 (White)"
 
     Text(
         buildString {
-            append(if (game.turn == "black") "Your turn" else "Aiko's turn")
+            append(if (game.turn == userSide) "Your turn" else "Aiko's turn")
+            append(" · you: $youLabel")
             append(" · "); append(game.status)
             game.engine?.let { append(" · $it") }
         },
         fontWeight = FontWeight.Medium,
         color = ShoujoText,
     )
+    ClockRow(
+        blackMs = game.clock_black_ms,
+        whiteMs = game.clock_white_ms,
+        byoyomiMs = game.byoyomi_ms,
+    )
+    game.last_move?.let {
+        Text(
+            "Last: $it",
+            style = MaterialTheme.typography.bodySmall,
+            color = ShoujoText.copy(alpha = 0.7f),
+        )
+    }
+    if (game.status != "playing") {
+        Text(
+            statusLine(game.status),
+            fontWeight = FontWeight.Bold,
+            color = ShoujoText,
+        )
+    }
     game.ai_comment?.let {
         Text(it, style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.85f))
     }
@@ -607,6 +688,7 @@ private fun ShogiGameBoard(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(458f / 500f)
+            .background(BoardWood, RoundedCornerShape(8.dp))
             .border(2.dp, BoardLine, RoundedCornerShape(8.dp)),
     ) {
         AsyncImage(
@@ -663,6 +745,34 @@ private fun ShogiGameBoard(
 }
 
 @Composable
+private fun ClockRow(blackMs: Long?, whiteMs: Long?, byoyomiMs: Long?) {
+    if (blackMs == null && whiteMs == null) return
+    Text(
+        buildString {
+            append("⏱ You: ${formatClock(blackMs)} · Aiko: ${formatClock(whiteMs)}")
+            if (byoyomiMs != null && byoyomiMs > 0) append(" · byoyomi ${byoyomiMs / 1000}s")
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = ShoujoText.copy(alpha = 0.8f),
+    )
+}
+
+private fun formatClock(ms: Long?): String {
+    if (ms == null) return "—"
+    val totalSec = (ms.coerceAtLeast(0) / 1000).toInt()
+    return "%d:%02d".format(totalSec / 60, totalSec % 60)
+}
+
+private fun statusLine(status: String): String = when (status) {
+    "checkmate" -> "Checkmate — game over"
+    "resigned" -> "Resigned — game over"
+    "timeout" -> "Flag — out of time ⌛"
+    "draw", "stalemate" -> "Draw — game over"
+    "finished" -> "Finished — game over"
+    else -> status
+}
+
+@Composable
 private fun GoGameBoard(
     state: GoUiState,
     hints: Set<Pair<Int, Int>>,
@@ -670,13 +780,16 @@ private fun GoGameBoard(
     onTap: (Int, Int) -> Unit,
     onPass: () -> Unit,
     onResign: () -> Unit,
+    onToggleHints: () -> Unit,
 ) {
     val game = state.game ?: return
-    val canInteract = !state.loading && game.status == "playing" && game.turn == "black"
+    val userSide = game.side.ifBlank { "black" }
+    val canInteract = !state.loading && game.status == "playing" && game.turn == userSide
+    val youLabel = if (userSide == "black") "Black ⚫" else "White ⚪"
 
     Text(
         buildString {
-            append(if (game.turn == "black") "Your turn (Black)" else "Aiko's turn")
+            append(if (game.turn == userSide) "Your turn ($youLabel)" else "Aiko's turn")
             append(" · ${game.size}×${game.size} · "); append(game.status)
             game.engine?.let { append(" · $it") }
         },
@@ -684,10 +797,17 @@ private fun GoGameBoard(
         color = ShoujoText,
     )
     Text(
-        "Captures — B: ${game.captured_black}  W: ${game.captured_white}",
+        "Captures — B: ${game.captured_black}  W: ${game.captured_white} · Moves: ${game.moves.size}",
         style = MaterialTheme.typography.bodySmall,
         color = ShoujoText.copy(alpha = 0.8f),
     )
+    game.last_move?.let {
+        Text(
+            "Last: $it",
+            style = MaterialTheme.typography.bodySmall,
+            color = ShoujoText.copy(alpha = 0.7f),
+        )
+    }
     game.ai_comment?.let {
         Text(it, style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.85f))
     }
@@ -716,11 +836,20 @@ private fun GoGameBoard(
     }
 
     Spacer(modifier = Modifier.height(12.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         OutlinedButton(onClick = onPass, enabled = canInteract) { Text("Pass") }
         OutlinedButton(onClick = onResign) { Text("Resign") }
-        if (game.status != "playing") {
-            Text(game.status, fontWeight = FontWeight.Bold, color = ShoujoText)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Hints", style = MaterialTheme.typography.bodySmall, color = ShoujoText)
+            Spacer(modifier = Modifier.size(4.dp))
+            Switch(checked = state.showHints, onCheckedChange = { onToggleHints() })
         }
+    }
+    if (game.status != "playing") {
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(statusLine(game.status), fontWeight = FontWeight.Bold, color = ShoujoText)
     }
 }

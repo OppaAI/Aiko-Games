@@ -8,16 +8,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import com.aiko.shogi.data.model.GoStone
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * Goban-style board inspired by classic desktop Go UIs (e.g. Hoshi).
@@ -41,21 +39,25 @@ fun GoBoardView(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(1f)
-            .pointerInput(size, enabled, stoneMap) {
+            .pointerInput(size, enabled, stones) {
                 detectTapGestures { offset ->
                     if (!enabled) return@detectTapGestures
+                    // Use the same coerced board size as drawing so tap math
+                    // can never disagree with the rendered grid.
+                    val n = size.coerceIn(9, 19)
                     val pad = min(this.size.width, this.size.height) * 0.06f
                     val usable = min(this.size.width, this.size.height) - 2f * pad
-                    val step = usable / (size - 1).coerceAtLeast(1)
+                    val step = usable / (n - 1).coerceAtLeast(1)
                     val originX = (this.size.width - usable) / 2f
                     val originY = (this.size.height - usable) / 2f
-                    val col = ((offset.x - originX) / step).toInt().coerceIn(0, size - 1)
-                    val row = ((offset.y - originY) / step).toInt().coerceIn(0, size - 1)
-                    // Snap to nearest intersection
+                    // Nearest intersection (not floor): round then verify
+                    // the tap is within half a cell of it.
+                    val col = ((offset.x - originX) / step).roundToInt().coerceIn(0, n - 1)
+                    val row = ((offset.y - originY) / step).roundToInt().coerceIn(0, n - 1)
                     val cx = originX + col * step
                     val cy = originY + row * step
                     val dist = kotlin.math.hypot(offset.x - cx, offset.y - cy)
-                    if (dist <= step * 0.45f && stoneMap[row to col] == null) {
+                    if (dist <= step * 0.5f && stoneMap[row to col] == null) {
                         onTap(row, col)
                     }
                 }
