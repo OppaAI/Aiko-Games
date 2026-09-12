@@ -21,7 +21,8 @@ Connects to your Aiko-chan server over Tailscale:
 ## Features
 
 - **Lobby** — Shogi (将棋) vs Aiko · Go (囲碁) vs Aiko · separate rules pages · Preferences
-- **Preferences** — server URL + optional app secret, difficulty (default medium), Go board size 9/13/19
+- **Preferences** — difficulty (default medium), side, Go board size 9/13/19
+- **Server URL** — baked in at build time from Aiko-chan's `AIKO_PUBLIC_BASE_URL` (`util/sync_app_server_url.sh` → `BuildConfig`); no in-app editor
 - **Shogi** — SFEN board, hand drops, promote dialog, YaneuraOu when online
 - **Go** — intersection grid, pass/resign, captures, KataGo when online
 - **Engines on the server** — the phone never runs search; Jetson Orin Nano can use casual AI only
@@ -41,7 +42,7 @@ Connects to your Aiko-chan server over Tailscale:
 
 1. Merge Aiko-chan **Go API** (PR #157) and ensure Shogi package is mounted.
 2. Clone this repo, open in Android Studio, sync Gradle.
-3. Set Aiko-chan Tailscale URL in-app.
+3. From Aiko-chan run `util/sync_app_server_url.sh` to bake in the Tailscale URL, then build.
 4. **Shogi (将棋) vs Aiko** or **Go (囲碁) vs Aiko**.
 
 ---

@@ -31,7 +31,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -99,17 +98,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AikoGamesTheme {
-                var baseUrl by remember { mutableStateOf(ServerConfig.get(this@MainActivity)) }
-                var appSecret by remember { mutableStateOf(ServerConfig.getSecret(this@MainActivity)) }
-                val retrofit = remember(baseUrl, appSecret) { buildRetrofit(baseUrl, appSecret) }
+                // Baked in at build time from AIKO_PUBLIC_BASE_URL
+                // (see local.properties → BuildConfig). No in-app override.
+                val baseUrl = remember { ServerConfig.get() }
+                val retrofit = remember(baseUrl) { buildRetrofit(baseUrl) }
                 val shogiApi = remember(retrofit) { retrofit.create(ShogiApi::class.java) }
                 val goApi = remember(retrofit) { retrofit.create(GoApi::class.java) }
 
-                // Include secret in the key so a secret change rebuilds the service
-                // (old service would keep sending the stale header).
-                val vmKey = remember(baseUrl, appSecret) { "$baseUrl|$appSecret" }
                 val shogiVm: ShogiViewModel = viewModel(
-                    key = "shogi-$vmKey",
+                    key = "shogi-$baseUrl",
                     factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
@@ -118,7 +115,7 @@ class MainActivity : ComponentActivity() {
                     },
                 )
                 val goVm: GoViewModel = viewModel(
-                    key = "go-$vmKey",
+                    key = "go-$baseUrl",
                     factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
@@ -132,13 +129,6 @@ class MainActivity : ComponentActivity() {
                         shogiVm = shogiVm,
                         goVm = goVm,
                         baseUrl = baseUrl,
-                        appSecret = appSecret,
-                        onSaveUrl = { raw ->
-                            baseUrl = ServerConfig.set(this@MainActivity, raw)
-                        },
-                        onSaveSecret = { raw ->
-                            appSecret = ServerConfig.setSecret(this@MainActivity, raw)
-                        },
                         modifier = Modifier.padding(padding),
                     )
                 }
@@ -146,21 +136,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun buildRetrofit(baseUrl: String, appSecret: String): Retrofit {
+    private fun buildRetrofit(baseUrl: String): Retrofit {
         val json = Json { ignoreUnknownKeys = true; isLenient = true }
-        val secret = appSecret.trim()
         val client = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
-            .addInterceptor { chain ->
-                val req = if (secret.isNotEmpty()) {
-                    chain.request().newBuilder()
-                        .header("X-Aiko-App-Secret", secret)
-                        .build()
-                } else chain.request()
-                chain.proceed(req)
-            }
             .build()
         return Retrofit.Builder()
             .baseUrl(baseUrl)
@@ -175,16 +156,13 @@ fun GamesApp(
     shogiVm: ShogiViewModel,
     goVm: GoViewModel,
     baseUrl: String,
-    appSecret: String,
-    onSaveUrl: (String) -> Unit,
-    onSaveSecret: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shogi by shogiVm.ui.collectAsState()
     val go by goVm.ui.collectAsState()
     var screen by remember { mutableStateOf(Screen.Lobby) }
 
-    LaunchedEffect(baseUrl, appSecret) {
+    LaunchedEffect(baseUrl) {
         shogiVm.refreshEngine()
         shogiVm.warmupEngine()
         goVm.refreshEngine()
@@ -257,17 +235,6 @@ fun GamesApp(
                 shogi = shogi,
                 go = go,
                 baseUrl = baseUrl,
-                appSecret = appSecret,
-                onSaveUrl = {
-                    onSaveUrl(it)
-                    shogiVm.refreshEngine()
-                    goVm.refreshEngine()
-                },
-                onSaveSecret = {
-                    onSaveSecret(it)
-                    shogiVm.refreshEngine()
-                    goVm.refreshEngine()
-                },
                 onShogiDifficulty = { shogiVm.setDifficulty(it) },
                 onGoDifficulty = { goVm.setDifficulty(it) },
                 onShogiSide = { shogiVm.setSide(it) },
@@ -311,7 +278,6 @@ fun GamesApp(
                     shogiVm.clearError()
                     goVm.clearError()
                 },
-                onOpenPreferences = { screen = Screen.Preferences },
             )
         }
     }
@@ -497,9 +463,6 @@ private fun PreferencesScreen(
     shogi: ShogiUiState,
     go: GoUiState,
     baseUrl: String,
-    appSecret: String,
-    onSaveUrl: (String) -> Unit,
-    onSaveSecret: (String) -> Unit,
     onShogiDifficulty: (String) -> Unit,
     onGoDifficulty: (String) -> Unit,
     onShogiSide: (String) -> Unit,
@@ -508,15 +471,7 @@ private fun PreferencesScreen(
     onToggleGoHints: () -> Unit,
     onBack: () -> Unit,
 ) {
-    var urlDraft by remember(baseUrl) { mutableStateOf(baseUrl) }
-    var urlError by remember { mutableStateOf<String?>(null) }
-    var secretDraft by remember(appSecret) { mutableStateOf(appSecret) }
-    var secretSaved by remember { mutableStateOf(false) }
     val scroll = rememberScrollState()
-
-    LaunchedEffect(secretDraft, appSecret) {
-        secretSaved = false
-    }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -531,50 +486,16 @@ private fun PreferencesScreen(
             Spacer(modifier = Modifier.width(64.dp))
         }
 
+        // Server address is baked in at build time (single source of truth:
+        // AIKO_PUBLIC_BASE_URL in Aiko-chan). Shown here, not editable.
         PrefsCard(title = "🌐 Server") {
-            OutlinedTextField(
-                value = urlDraft,
-                onValueChange = { urlDraft = it; urlError = null },
-                label = { Text("Aiko-chan URL") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                isError = urlError != null,
-                supportingText = urlError?.let { { Text(it) } },
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
-                    if (ServerConfig.isValid(urlDraft)) {
-                        onSaveUrl(urlDraft)
-                        urlError = null
-                    } else {
-                        urlError = "Enter a valid http(s) URL"
-                    }
-                }) { Text("Save URL") }
-                OutlinedButton(onClick = { urlDraft = baseUrl; urlError = null }) {
-                    Text("Reset")
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = secretDraft,
-                onValueChange = { secretDraft = it },
-                label = { Text("App secret (optional)") },
-                placeholder = { Text("GAMES_APP_SECRET — fixes 401 over Tailscale") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
-                    onSaveSecret(secretDraft)
-                    secretSaved = true
-                }) { Text("Save secret") }
-                if (secretSaved) {
-                    Text("✓ saved", color = ShoujoText, style = MaterialTheme.typography.bodySmall)
-                }
-            }
             Text(
-                "If the server sets GAMES_APP_SECRET, paste the same value here. " +
-                    "Without it, Go logins over a proxied Tailscale hostname return 401.",
+                "🔗 ${ServerConfig.displayHost(baseUrl)}",
+                color = ShoujoText,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                "Managed centrally — rebuild the app to repoint it.",
                 style = MaterialTheme.typography.bodySmall,
                 color = ShoujoText.copy(alpha = 0.7f),
             )
@@ -858,10 +779,7 @@ private fun RulesSection(title: String, body: @Composable () -> Unit) {
 private fun ErrorCard(
     errors: List<Pair<String, String>>,
     onDismiss: () -> Unit,
-    onOpenPreferences: () -> Unit,
 ) {
-    // Auth / network errors are fixable in Preferences (URL + app secret).
-    val fixable = errors.any { (_, msg) -> "🔒" in msg || "📡" in msg }
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
         modifier = Modifier.fillMaxWidth(),
@@ -872,15 +790,7 @@ private fun ErrorCard(
                     style = MaterialTheme.typography.bodySmall)
                 Spacer(modifier = Modifier.height(4.dp))
             }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onDismiss) { Text("Dismiss") }
-                if (fixable) {
-                    Button(onClick = onOpenPreferences) { Text("⚙ Open Preferences") }
-                }
-            }
+            TextButton(onClick = onDismiss) { Text("Dismiss") }
         }
     }
 }

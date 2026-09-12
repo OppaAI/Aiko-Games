@@ -17,7 +17,7 @@ object ApiErrors {
             }.getOrNull()
             return when (e.code()) {
                 401 -> "🔒 Not signed in on the server (${detail ?: "authentication required"}). " +
-                    "On the server set AIKO_USER_ID, or add your GAMES_APP_SECRET in Preferences → Server."
+                    "On the server set AIKO_USER_ID and restart it."
                 403 -> "⛔ Forbidden (${detail ?: fallback}). Check server login / accepted terms."
                 404 -> detail ?: "No active game on the server — tap Start to begin a new one."
                 400 -> detail ?: fallback
@@ -28,7 +28,8 @@ object ApiErrors {
         val msg = e.message.orEmpty()
         return when {
             "Unable to resolve host" in msg || "Failed to connect" in msg || "timeout" in msg.lowercase() ->
-                "📡 Cannot reach the server. Check the URL in Preferences and that Tailscale is connected."
+                "📡 Cannot reach the server. Check that Tailscale is connected; " +
+                    "the address is baked in at build time (AIKO_PUBLIC_BASE_URL)."
             msg.isNotBlank() -> msg
             else -> fallback
         }
