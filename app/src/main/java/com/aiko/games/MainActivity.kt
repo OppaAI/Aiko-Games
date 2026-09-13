@@ -104,6 +104,7 @@ enum class Screen {
     ShogiRules,
     GoRules,
     KoikoiRules,
+    GuideSelection,
     ShogiGame,
     GoGame,
     KoikoiGame,
@@ -250,15 +251,8 @@ fun GamesApp(
                 onResumeGo = { screen = Screen.GoGame },
                 onStartKoi = { koiVm.startGame() },
                 onResumeKoi = { screen = Screen.KoikoiGame },
-                onShogiRules = { screen = Screen.ShogiRules },
-                onGoRules = { screen = Screen.GoRules },
-                onKoiRules = { screen = Screen.KoikoiRules },
+                onGuides = { screen = Screen.GuideSelection },
                 onPreferences = { screen = Screen.Preferences },
-                onRefresh = {
-                    shogiVm.refreshEngine()
-                    goVm.refreshEngine()
-                    koiVm.refreshEngine()
-                },
             )
             Screen.Preferences -> PreferencesScreen(
                 shogi = shogi,
@@ -275,9 +269,15 @@ fun GamesApp(
                 onKoiMonths = { koiVm.setMonths(it) },
                 onBack = { screen = Screen.Lobby },
             )
-            Screen.ShogiRules -> ShogiRulesScreen(onBack = { screen = Screen.Lobby })
-            Screen.GoRules -> GoRulesScreen(onBack = { screen = Screen.Lobby })
-            Screen.KoikoiRules -> KoikoiRulesScreen(onBack = { screen = Screen.Lobby })
+            Screen.ShogiRules -> ShogiRulesScreen(onBack = { screen = Screen.GuideSelection })
+            Screen.GoRules -> GoRulesScreen(onBack = { screen = Screen.GuideSelection })
+            Screen.KoikoiRules -> KoikoiRulesScreen(onBack = { screen = Screen.GuideSelection })
+            Screen.GuideSelection -> GuideSelectionScreen(
+                onShogi = { screen = Screen.ShogiRules },
+                onGo = { screen = Screen.GoRules },
+                onKoi = { screen = Screen.KoikoiRules },
+                onBack = { screen = Screen.Lobby }
+            )
             Screen.ShogiGame -> ShogiGameBoard(
                 state = shogi,
                 hints = shogiVm.hintSquares(),
@@ -341,11 +341,8 @@ private fun Lobby(
     onResumeGo: () -> Unit,
     onStartKoi: () -> Unit,
     onResumeKoi: () -> Unit,
-    onShogiRules: () -> Unit,
-    onGoRules: () -> Unit,
-    onKoiRules: () -> Unit,
+    onGuides: () -> Unit,
     onPreferences: () -> Unit,
-    onRefresh: () -> Unit,
 ) {
     val scroll = rememberScrollState()
 
@@ -368,74 +365,108 @@ private fun Lobby(
             )
         }
 
-        EngineStatusLine(shogi = shogi, go = go, koi = koi, onRefresh = onRefresh)
-
-        // Current setup summary (details live in Preferences).
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.75f)),
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Text(
-                    "♟️ ${shogi.difficulty.cap()} · ${sideLabel(shogi.side)}   |   " +
-                        "⚫ ${go.difficulty.cap()} · ${go.boardSize}×${go.boardSize}   |   " +
-                        "🌸 ${koi.difficulty.cap()} · ${koi.months} mo",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = ShoujoText,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
+        Text(
+            "Aiko Games 🎮",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.ExtraBold,
+            color = ShoujoText,
+        )
+        Text(
+            "Let's play together!",
+            style = MaterialTheme.typography.bodySmall,
+            color = ShoujoText.copy(alpha = 0.7f),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
 
         // --- Cute game menu (Lingo-style cards) ---
         if (shogi.loading) {
             LoadingRow(label = "Starting Shogi…")
         } else if (shogi.inGame && shogi.game != null) {
-            CuteGameCard(icon = "♟️", title = "Shogi 将棋", subtitle = "Resume vs Aiko ♡", color = CuteMint, onClick = onResumeShogi)
+            val engine = shogi.game.engine
+            val sub1 = "Resume vs Aiko" + (if (engine != null) " via $engine" else "")
+            val sub2 = "${sideLabel(shogi.side)} · ${shogi.difficulty.cap()}"
+            CuteGameCard(icon = "♟️", title = "Shogi 将棋", subtitle1 = sub1, subtitle2 = sub2, color = CuteMint, onClick = onResumeShogi)
         } else {
-            CuteGameCard(icon = "♟️", title = "Shogi 将棋", subtitle = "vs Aiko ♡", color = CuteMint, onClick = onStartShogi)
+            val engine = if (shogi.engineOnline == true) "YaneuraOu" else null
+            val sub1 = "New Game vs Aiko" + (if (engine != null) " via $engine" else "")
+            val sub2 = "${sideLabel(shogi.side)} · ${shogi.difficulty.cap()}"
+            CuteGameCard(icon = "♟️", title = "Shogi 将棋", subtitle1 = sub1, subtitle2 = sub2, color = CuteMint, onClick = onStartShogi)
         }
 
         if (go.loading) {
             LoadingRow(label = "Starting Go… (server may take a moment)")
         } else if (go.inGame && go.game != null) {
-            CuteGameCard(icon = "⚫", title = "Go 囲碁", subtitle = "Resume vs Aiko ♡", color = CuteSky, onClick = onResumeGo)
+            val engine = go.game.engine
+            val sub1 = "Resume vs Aiko" + (if (engine != null) " via $engine" else "")
+            val sub2 = "${go.boardSize}×${go.boardSize} · ${go.difficulty.cap()}"
+            CuteGameCard(icon = "⚫", title = "Go 囲碁", subtitle1 = sub1, subtitle2 = sub2, color = CuteSky, onClick = onResumeGo)
         } else {
-            CuteGameCard(icon = "⚫", title = "Go 囲碁", subtitle = "vs Aiko ♡", color = CuteSky, onClick = onStartGo)
+            val engine = if (go.engineOnline == true) "KataGo" else null
+            val sub1 = "New Game vs Aiko" + (if (engine != null) " via $engine" else "")
+            val sub2 = "${go.boardSize}×${go.boardSize} · ${go.difficulty.cap()}"
+            CuteGameCard(icon = "⚫", title = "Go 囲碁", subtitle1 = sub1, subtitle2 = sub2, color = CuteSky, onClick = onStartGo)
         }
 
         if (koi.loading) {
             LoadingRow(label = "Dealing hanafuda… 🌸")
         } else if (koi.inGame && koi.game != null) {
-            CuteGameCard(icon = "🌸", title = "Koi-Koi こいこい", subtitle = "Resume vs Aiko ♡", color = ShoujoPink, onClick = onResumeKoi)
+            val sub1 = "Resume vs Aiko"
+            val sub2 = "${koi.months} months"
+            CuteGameCard(icon = "🎴", title = "Koi-Koi こいこい", subtitle1 = sub1, subtitle2 = sub2, color = ShoujoPink, onClick = onResumeKoi)
         } else {
-            CuteGameCard(icon = "🌸", title = "Koi-Koi こいこい", subtitle = "vs Aiko ♡", color = ShoujoPink, onClick = onStartKoi)
+            val sub1 = "New Game vs Aiko"
+            val sub2 = "${koi.months} months"
+            CuteGameCard(icon = "🎴", title = "Koi-Koi こいこい", subtitle1 = sub1, subtitle2 = sub2, color = ShoujoPink, onClick = onStartKoi)
         }
 
         val busy = shogi.loading || go.loading || koi.loading
         if (!busy) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedButton(onClick = onShogiRules, modifier = Modifier.weight(1f)) { Text("📖 Shogi", fontSize = 11.sp, maxLines = 1) }
-                // Go is a short word, we can shrink its weight slightly if needed, but 1f is standard
-                OutlinedButton(onClick = onGoRules, modifier = Modifier.weight(0.85f)) { Text("📖 Go", fontSize = 11.sp, maxLines = 1) }
-                OutlinedButton(onClick = onKoiRules, modifier = Modifier.weight(1.15f)) { Text("📖 Koi-Koi", fontSize = 11.sp, maxLines = 1) }
-            }
+            OutlinedButton(
+                onClick = onGuides,
+                modifier = Modifier.fillMaxWidth(0.9f),
+            ) { Text("📖 Game Guides ♡") }
+
             OutlinedButton(
                 onClick = onPreferences,
                 modifier = Modifier.fillMaxWidth(0.9f),
             ) { Text("⚙️ Preferences ♡") }
         }
 
-        Text(
-            "Credits: Engines by YaneuraOu & KataGo · Art by sunfish-shogi.github.io",
-            style = MaterialTheme.typography.bodySmall,
-            color = ShoujoText.copy(alpha = 0.75f),
-            textAlign = TextAlign.Center,
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+        ) {
+            Text(
+                "Credits:",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = ShoujoText,
+            )
+            Text(
+                "Shogi Engine: YaneuraOu (github.com/yaneurao/YaneuraOu)",
+                style = MaterialTheme.typography.bodySmall,
+                color = ShoujoText.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                "Go Engine: KataGo (github.com/lightvector/KataGo)",
+                style = MaterialTheme.typography.bodySmall,
+                color = ShoujoText.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                "Shogi Art: sunfish-shogi (sunfish-shogi.github.io)",
+                style = MaterialTheme.typography.bodySmall,
+                color = ShoujoText.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                "Koi-Koi Art: Louie Mantia (CC BY-SA 4.0)",
+                style = MaterialTheme.typography.bodySmall,
+                color = ShoujoText.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center,
+            )
+        }
         Spacer(modifier = Modifier.height(24.dp))
     }
 }
@@ -444,13 +475,14 @@ private fun Lobby(
 private fun CuteGameCard(
     icon: String,
     title: String,
-    subtitle: String,
+    subtitle1: String,
+    subtitle2: String,
     color: Color,
     onClick: () -> Unit,
 ) {
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(76.dp),
+        modifier = Modifier.fillMaxWidth().height(84.dp),
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = color),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -459,11 +491,12 @@ private fun CuteGameCard(
             modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(icon, fontSize = 30.sp)
+            Text(icon, fontSize = 32.sp)
             Spacer(modifier = Modifier.size(14.dp))
             Column {
                 Text(text = title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = ShoujoText)
-                Text(text = subtitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ShoujoText.copy(alpha = 0.7f))
+                Text(text = subtitle1, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ShoujoText.copy(alpha = 0.7f))
+                Text(text = subtitle2, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ShoujoText.copy(alpha = 0.6f))
             }
             Spacer(modifier = Modifier.weight(1f))
             Text("▶", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = ShoujoText.copy(alpha = 0.5f))
@@ -477,46 +510,6 @@ private fun LoadingRow(label: String) {
         CircularProgressIndicator(modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.size(8.dp))
         Text(label, color = ShoujoText)
-    }
-}
-
-@Composable
-private fun EngineStatusLine(shogi: ShogiUiState, go: GoUiState, koi: KoiUiState, onRefresh: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            buildString {
-                append("♟️ ")
-                append(
-                    when (shogi.engineOnline) {
-                        true -> "YaneuraOu ✅"
-                        false -> "casual"
-                        null -> "…"
-                    },
-                )
-                append("  ·  ⚫ ")
-                append(
-                    when (go.engineOnline) {
-                        true -> "KataGo ✅"
-                        false -> "casual"
-                        null -> "…"
-                    },
-                )
-                append("  ·  🌸 ")
-                append(
-                    when (koi.engineOnline) {
-                        true -> "Aiko ✅"
-                        false -> "casual"
-                        null -> "…"
-                    },
-                )
-            },
-            color = ShoujoText,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        TextButton(onClick = onRefresh) { Text("↻") }
     }
 }
 
@@ -684,6 +677,31 @@ private fun sideLabel(side: String): String = if (side == "white") "後手 White
 private fun goSideLabel(side: String): String = if (side == "white") "White ⚪" else "Black ⚫"
 
 // ----------------------------------------------------------------- Rules ---
+@Composable
+private fun GuideSelectionScreen(
+    onShogi: () -> Unit,
+    onGo: () -> Unit,
+    onKoi: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("← Back", color = ShoujoAccent, fontWeight = FontWeight.Bold) }
+            Spacer(modifier = Modifier.weight(1f))
+            Text("Game Guides", fontWeight = FontWeight.ExtraBold, color = ShoujoText)
+            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(64.dp))
+        }
+
+        CuteGameCard(icon = "♟️", title = "Shogi Guide", subtitle1 = "Learn the soul of chess", subtitle2 = "Sente/Gote · Pieces · Drops", color = CuteMint, onClick = onShogi)
+        CuteGameCard(icon = "⚫", title = "Go Guide", subtitle1 = "Master the board", subtitle2 = "Rules · Capture · Ko", color = CuteSky, onClick = onGo)
+        CuteGameCard(icon = "🌸", title = "Koi-Koi Guide", subtitle1 = "Play with the seasons", subtitle2 = "Hanafuda · Yaku · Match", color = ShoujoPink, onClick = onKoi)
+    }
+}
 
 @Composable
 private fun ShogiRulesScreen(onBack: () -> Unit) {
@@ -1417,7 +1435,7 @@ private fun KoikoiGameBoard(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("🐱", fontSize = 18.sp)
+            Text("🌸", fontSize = 18.sp)
             repeat(game.hand_aiko_count) { HanafudaBack(width = 30.dp) }
         }
         Spacer(modifier = Modifier.height(4.dp))
