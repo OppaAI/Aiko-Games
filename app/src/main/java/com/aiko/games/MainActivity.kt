@@ -231,6 +231,7 @@ fun GamesApp(
         modifier = modifier
             .fillMaxSize()
             .background(ShoujoSoftPink)
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -1047,6 +1048,23 @@ private fun ShogiGameBoard(
     val yourHand = if (userSide == "black") blackHand else whiteHand
     val aikoHand = if (userSide == "black") whiteHand else blackHand
 
+    // Clock logic
+    val sfenKey = game.sfen + "|" + (game.last_move ?: "")
+    val (youMain, aikoMain) = if (userSide == "black") game.clock_black_ms to game.clock_white_ms else game.clock_white_ms to game.clock_black_ms
+    val limitMs = if (game.byoyomi_ms != null && game.byoyomi_ms > 0) game.byoyomi_ms else null
+    val snapshotAt = remember(sfenKey) { System.currentTimeMillis() }
+    var now by remember(sfenKey) { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(sfenKey, game.status, game.turn) {
+        if (game.status != "playing") return@LaunchedEffect
+        while (true) {
+            delay(250L)
+            now = System.currentTimeMillis()
+        }
+    }
+    val moveElapsed = (now - snapshotAt).coerceAtLeast(0L)
+    val moveLeft = limitMs?.let { (it - moveElapsed).coerceAtLeast(0L) }
+    val moverIsYou = game.turn == userSide
+
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = onBackToLobby) { Text("← Lobby") }
         Spacer(modifier = Modifier.weight(1f))
@@ -1061,23 +1079,18 @@ private fun ShogiGameBoard(
 
     InfoCard(
         lines = buildList {
-            add("You: $youLabel · Aiko: $aikoLabel · ${game.status}${game.engine?.let { " · $it" } ?: ""}")
-            game.last_move?.let { add("Last: $it") }
+            add("You: $youLabel · Aiko: $aikoLabel · ${game.status}")
+            if (youMain != null || aikoMain != null) {
+                add("Main: You: ${formatClock(youMain)} · Aiko: ${formatClock(aikoMain)}")
+            }
+            if (game.status == "playing" && moveLeft != null) {
+                add("Timer: ⏱ ${if (moverIsYou) "Your move" else "Aiko's move"}: ${formatClock(moveLeft)} left")
+            } else if (game.status == "playing") {
+                add("Timer: ⏱ This move: ${formatClock(moveElapsed)}")
+            }
             if (game.status != "playing") add(statusLine(game.status))
         },
     )
-    Spacer(modifier = Modifier.height(6.dp))
-    ShogiClockCard(
-        blackMs = game.clock_black_ms,
-        whiteMs = game.clock_white_ms,
-        byoyomiMs = game.byoyomi_ms,
-        turn = game.turn,
-        status = game.status,
-        userSide = userSide,
-        sfenKey = game.sfen + "|" + (game.last_move ?: ""),
-    )
-    Spacer(modifier = Modifier.height(6.dp))
-    AikoCommentBox(game.ai_comment)
     Spacer(modifier = Modifier.height(6.dp))
     HandTray(
         label = "Aiko's hand ($aikoLabel)",
@@ -1157,107 +1170,12 @@ private fun ShogiGameBoard(
         isOpponent = false,
         onPiece = onHandPiece,
     )
+    Spacer(modifier = Modifier.height(6.dp))
+    AikoCommentBox(game.ai_comment)
     Spacer(modifier = Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = onBackToLobby) { Text("Lobby") }
         OutlinedButton(onClick = onResign) { Text("Resign") }
-    }
-}
-
-@Composable
-private fun ShogiClockCard(
-    blackMs: Long?,
-    whiteMs: Long?,
-    byoyomiMs: Long?,
-    turn: String,
-    status: String,
-    userSide: String,
-    sfenKey: String,
-) {
-    if (blackMs == null && whiteMs == null) return
-    // Main times are the server snapshot — shown as-is, refreshed on every move.
-    val (youMain, aikoMain) = if (userSide == "black") blackMs to whiteMs else whiteMs to blackMs
-    val youMainLow = (youMain ?: Long.MAX_VALUE) <= 60_000L
-    val aikoMainLow = (aikoMain ?: Long.MAX_VALUE) <= 60_000L
-
-    // Per-move clock: counts down the byoyomi allowance, resets every move.
-    // This is the ticking number — main time above never ticks here.
-    val limitMs = if (byoyomiMs != null && byoyomiMs > 0) byoyomiMs else null
-    val snapshotAt = remember(sfenKey) { System.currentTimeMillis() }
-    var now by remember(sfenKey) { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(sfenKey, status, turn) {
-        if (status != "playing") return@LaunchedEffect
-        while (true) {
-            delay(250L)
-            now = System.currentTimeMillis()
-        }
-    }
-    val moveElapsed = (now - snapshotAt).coerceAtLeast(0L)
-    val moveLeft = limitMs?.let { (it - moveElapsed).coerceAtLeast(0L) }
-    val moveLow = (moveLeft ?: Long.MAX_VALUE) <= 15_000L
-    val moverIsYou = turn == userSide
-    val moverMain = if (turn == "black") blackMs else whiteMs
-    val moverOnByoyomi = (moverMain ?: Long.MAX_VALUE) <= 0L
-
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f)),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Main  You: ", color = ShoujoText, style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    formatClock(youMain),
-                    fontWeight = FontWeight.Bold,
-                    color = if (youMainLow) Color(0xFFC62828) else ShoujoText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Text("Aiko: ", color = ShoujoText, style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    formatClock(aikoMain),
-                    fontWeight = FontWeight.Bold,
-                    color = if (aikoMainLow) Color(0xFFC62828) else ShoujoText,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            if (status == "playing" && moveLeft != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (moverIsYou) "⏱ Your move: " else "⏱ Aiko's move: ",
-                        color = ShoujoText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Text(
-                        "${formatClock(moveLeft)} left",
-                        fontWeight = FontWeight.Bold,
-                        color = if (moveLow) Color(0xFFC62828) else ShoujoText,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    if (moveLow) Text("  ⚠ hurry!", color = Color(0xFFC62828), style = MaterialTheme.typography.bodySmall)
-                }
-                Text(
-                    if (moverOnByoyomi) "must move before 0:00 or flag ⏰ · resets each turn"
-                    else "pace guide — main time covers you · resets each turn",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = ShoujoText.copy(alpha = 0.7f),
-                )
-            } else if (status == "playing") {
-                Text(
-                    "⏱ This move: ${formatClock(moveElapsed)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = ShoujoText.copy(alpha = 0.8f),
-                )
-            }
-            if (limitMs != null) {
-                Text(
-                    "byoyomi ${limitMs / 1000}s per move",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = ShoujoText.copy(alpha = 0.6f),
-                )
-            }
-        }
     }
 }
 
