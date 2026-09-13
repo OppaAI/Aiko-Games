@@ -90,7 +90,6 @@ import com.aiko.games.ui.theme.ShoujoAccent
 import com.aiko.games.ui.theme.ShoujoPalePink
 import com.aiko.games.ui.theme.ShoujoPink
 import com.aiko.games.ui.theme.ShoujoSoftPink
-import com.aiko.games.ui.theme.ShoujoText
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -117,7 +116,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AikoGamesTheme {
+            var darkTheme by remember { mutableStateOf(false) }
+            AikoGamesTheme(darkTheme = darkTheme) {
                 // Baked in at build time from AIKO_PUBLIC_BASE_URL
                 // (see local.properties → BuildConfig). No in-app override.
                 val baseUrl = remember { ServerConfig.get() }
@@ -160,6 +160,8 @@ class MainActivity : ComponentActivity() {
                         goVm = goVm,
                         koiVm = koiVm,
                         baseUrl = baseUrl,
+                        darkTheme = darkTheme,
+                        onToggleDarkTheme = { darkTheme = !darkTheme },
                         modifier = Modifier.padding(padding),
                     )
                 }
@@ -188,6 +190,8 @@ fun GamesApp(
     goVm: GoViewModel,
     koiVm: KoiKoiViewModel,
     baseUrl: String,
+    darkTheme: Boolean,
+    onToggleDarkTheme: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shogi by shogiVm.ui.collectAsState()
@@ -236,7 +240,7 @@ fun GamesApp(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(ShoujoSoftPink)
+            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -260,6 +264,8 @@ fun GamesApp(
                 go = go,
                 koi = koi,
                 baseUrl = baseUrl,
+                darkTheme = darkTheme,
+                onToggleDarkTheme = onToggleDarkTheme,
                 onShogiDifficulty = { shogiVm.setDifficulty(it) },
                 onGoDifficulty = { goVm.setDifficulty(it) },
                 onKoiDifficulty = { koiVm.setDifficulty(it) },
@@ -377,7 +383,7 @@ private fun Lobby(
             "Let's play together!",
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
-            color = ShoujoText.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -443,30 +449,30 @@ private fun Lobby(
                 "Credits:",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.ExtraBold,
-                color = ShoujoText,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 "Shogi Engine: YaneuraOu (github.com/yaneurao/YaneuraOu)",
                 style = MaterialTheme.typography.bodySmall,
-                color = ShoujoText.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 textAlign = TextAlign.Center,
             )
             Text(
                 "Go Engine: KataGo (github.com/lightvector/KataGo)",
                 style = MaterialTheme.typography.bodySmall,
-                color = ShoujoText.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 textAlign = TextAlign.Center,
             )
             Text(
                 "Shogi Art: sunfish-shogi (sunfish-shogi.github.io)",
                 style = MaterialTheme.typography.bodySmall,
-                color = ShoujoText.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 textAlign = TextAlign.Center,
             )
             Text(
                 "Koi-Koi Art: Louie Mantia (CC BY-SA 4.0)",
                 style = MaterialTheme.typography.bodySmall,
-                color = ShoujoText.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 textAlign = TextAlign.Center,
             )
         }
@@ -507,12 +513,12 @@ private fun CuteGameCard(
             }
             Spacer(modifier = Modifier.width(14.dp))
             Column {
-                Text(text = title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = ShoujoText)
-                Text(text = subtitle1, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ShoujoText.copy(alpha = 0.7f))
-                Text(text = subtitle2, fontSize = 11.sp, fontWeight = FontWeight.Normal, color = ShoujoText.copy(alpha = 0.6f))
+                Text(text = title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = subtitle1, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                Text(text = subtitle2, fontSize = 11.sp, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
             }
             Spacer(modifier = Modifier.weight(1f))
-            Text("▶", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = ShoujoText.copy(alpha = 0.5f))
+            Text("▶", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
         }
     }
 }
@@ -522,7 +528,7 @@ private fun LoadingRow(label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         CircularProgressIndicator(modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.size(8.dp))
-        Text(label, color = ShoujoText)
+        Text(label, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -534,6 +540,8 @@ private fun PreferencesScreen(
     go: GoUiState,
     koi: KoiUiState,
     baseUrl: String,
+    darkTheme: Boolean,
+    onToggleDarkTheme: () -> Unit,
     onShogiDifficulty: (String) -> Unit,
     onGoDifficulty: (String) -> Unit,
     onKoiDifficulty: (String) -> Unit,
@@ -554,9 +562,17 @@ private fun PreferencesScreen(
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Text("← Lobby") }
             Spacer(modifier = Modifier.weight(1f))
-            Text("Preferences", fontWeight = FontWeight.Bold, color = ShoujoText)
+            Text("Preferences", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             Spacer(modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(64.dp))
+        }
+
+        PrefsCard(title = "✨ Appearance") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Anthestatic (Dark Mode)", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.weight(1f))
+                Switch(checked = darkTheme, onCheckedChange = { onToggleDarkTheme() })
+            }
         }
 
         PrefsCard(title = "♟️ Shogi") {
@@ -610,7 +626,7 @@ private fun PreferencesScreen(
             }
             Spacer(modifier = Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Move hints", color = ShoujoText, style = MaterialTheme.typography.bodyMedium)
+                Text("Move hints", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.size(8.dp))
                 Switch(checked = go.showHints, onCheckedChange = { onToggleGoHints() })
             }
@@ -637,7 +653,7 @@ private fun PreferencesScreen(
             Text(
                 "Months per match — 3 quick, 6 classic-short, 12 full year.",
                 style = MaterialTheme.typography.bodySmall,
-                color = ShoujoText.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )
         }
 
@@ -653,10 +669,10 @@ private fun PrefsCard(title: String, body: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)),
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, fontWeight = FontWeight.Bold, color = ShoujoText)
+            Text(title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             body()
         }
     }
@@ -664,7 +680,7 @@ private fun PrefsCard(title: String, body: @Composable () -> Unit) {
 
 @Composable
 private fun PrefsLabel(text: String) {
-    Text(text, style = MaterialTheme.typography.labelLarge, color = ShoujoText)
+    Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
 }
 
 @Composable
@@ -705,7 +721,7 @@ private fun GuideSelectionScreen(
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Text("← Back", color = ShoujoAccent, fontWeight = FontWeight.Bold) }
             Spacer(modifier = Modifier.weight(1f))
-            Text("Game Guides", fontWeight = FontWeight.ExtraBold, color = ShoujoText)
+            Text("Game Guides", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
             Spacer(modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(64.dp))
         }
@@ -872,12 +888,12 @@ private fun GoRulesScreen(onBack: () -> Unit) {
 @Composable
 private fun RulesSection(title: String, body: @Composable () -> Unit) {
     Spacer(modifier = Modifier.height(12.dp))
-    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ShoujoText)
+    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
     Spacer(modifier = Modifier.height(4.dp))
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
             .padding(12.dp),
     ) { Column { body() } }
 }
@@ -921,12 +937,12 @@ private fun AikoCommentBox(comment: String?) {
                 Text(
                     "Aiko",
                     fontWeight = FontWeight.Bold,
-                    color = ShoujoText,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.labelMedium,
                 )
                 Text(
                     comment,
-                    color = ShoujoText,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
@@ -940,12 +956,12 @@ private fun AikoCommentBox(comment: String?) {
 private fun InfoCard(lines: List<String>) {
     if (lines.isEmpty()) return
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.75f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             lines.forEach {
-                Text(it, color = ShoujoText, style = MaterialTheme.typography.bodySmall)
+                Text(it, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -963,10 +979,10 @@ private fun HandTray(
     onPiece: (Char) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = ShoujoText.copy(alpha = 0.75f))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
         if (pieces.isEmpty()) {
             Box(Modifier.fillMaxWidth().height(42.dp), contentAlignment = Alignment.CenterStart) {
-                Text("(empty)", style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.5f))
+                Text("(empty)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
             }
         } else {
             Row(
@@ -1010,7 +1026,7 @@ private fun HandTray(
                                 Text(
                                     "×${hp.count}",
                                     fontWeight = FontWeight.Bold,
-                                    color = ShoujoText,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 14.sp,
                                 )
                             }
@@ -1023,7 +1039,7 @@ private fun HandTray(
             Text(
                 "Red border = gote (white) pieces",
                 style = MaterialTheme.typography.bodySmall,
-                color = ShoujoText.copy(alpha = 0.45f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
             )
         }
     }
@@ -1084,7 +1100,7 @@ private fun ShogiGameBoard(
             Text(
                 if (game.turn == userSide) "Your turn" else "Aiko's turn",
                 fontWeight = FontWeight.Bold,
-                color = ShoujoText,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Button(
                 onClick = onResign,
@@ -1243,7 +1259,7 @@ private fun GoGameBoard(
         Text(
             if (game.turn == userSide) "Your turn ($youLabel)" else "Aiko's turn",
             fontWeight = FontWeight.Bold,
-            color = ShoujoText,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Button(
             onClick = onResign,
@@ -1294,7 +1310,7 @@ private fun GoGameBoard(
         ) {
             OutlinedButton(onClick = onPass, enabled = canInteract) { Text("Pass") }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Hints", style = MaterialTheme.typography.bodySmall, color = ShoujoText)
+                Text("Hints", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.size(4.dp))
                 Switch(checked = state.showHints, onCheckedChange = { onToggleHints() })
             }
@@ -1313,7 +1329,7 @@ private fun YakuChip(yaku: KoiYaku) {
             .padding(horizontal = 8.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text("${yaku.jp} ${yaku.points}", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = ShoujoText)
+        Text("${yaku.jp} ${yaku.points}", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -1321,7 +1337,7 @@ private fun YakuChip(yaku: KoiYaku) {
 private fun CapturedLine(label: String, cards: List<KoiCard>, yaku: List<KoiYaku>) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = ShoujoText.copy(alpha = 0.75f))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
             Spacer(modifier = Modifier.size(6.dp))
             val counts = cards.groupingBy { it.kind }.eachCount()
             val order = listOf("hikari", "tane", "tan-poetry", "tan-blue", "tan-red", "kasu")
@@ -1330,7 +1346,7 @@ private fun CapturedLine(label: String, cards: List<KoiCard>, yaku: List<KoiYaku
                 if (counts.isEmpty()) "(empty)"
                 else order.filter { counts[it] ?: 0 > 0 }.joinToString(" ") { "${icons[it]}${counts[it]}" },
                 style = MaterialTheme.typography.bodySmall,
-                color = ShoujoText.copy(alpha = 0.8f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
             )
         }
         if (yaku.isNotEmpty()) {
@@ -1405,7 +1421,7 @@ private fun KoikoiGameBoard(
             Text(
                 "🌸 Month ${game.month}/${game.months}",
                 fontWeight = FontWeight.ExtraBold,
-                color = ShoujoText,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Button(
                 onClick = onResign,
@@ -1444,7 +1460,7 @@ private fun KoikoiGameBoard(
                         else -> "🌸 Aiko takes the month +${r.points} (${r.base}×${r.multiplier})"
                     },
                     fontWeight = FontWeight.ExtraBold,
-                    color = ShoujoText,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(10.dp),
                 )
@@ -1511,7 +1527,7 @@ private fun KoikoiGameBoard(
             Text(
                 "🎴 Deck flipped $flipName — tap a glowing card!",
                 fontWeight = FontWeight.Bold,
-                color = ShoujoText,
+                color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -1519,7 +1535,7 @@ private fun KoikoiGameBoard(
         Spacer(modifier = Modifier.height(6.dp))
 
         // Your hand.
-        Text("Your hand ♡", style = MaterialTheme.typography.labelMedium, color = ShoujoText.copy(alpha = 0.75f))
+        Text("Your hand ♡", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1538,16 +1554,16 @@ private fun KoikoiGameBoard(
         }
         if (canPlay) {
             val hint = if (selected == null) "Pick a card ♡" else "Tap a glowing field card ✨"
-            Text(hint, style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.8f))
+            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
         } else if (game.status == "playing" && game.turn != "you" && !state.loading) {
-            Text("Aiko is thinking… 💭", style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.8f))
+            Text("Aiko is thinking… 💭", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
         }
         if (state.loading) {
             Spacer(modifier = Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.size(8.dp))
-                Text("Aiko is playing… 🌸", color = ShoujoText)
+                Text("Aiko is playing… 🌸", color = MaterialTheme.colorScheme.onSurface)
             }
         }
         Spacer(modifier = Modifier.height(6.dp))

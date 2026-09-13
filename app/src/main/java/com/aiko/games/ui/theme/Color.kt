@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 val ShoujoSoftPink = Color(0xFFFCE4EC)
 val ShoujoPalePink = Color(0xFFFFF1F6)
 val ShoujoAccent = Color(0xFFF06292)
+val ShoujoDarkText = Color(0xFFFFEBEE)
 val ShoujoText = Color(0xFF4E342E)
 
 // Cute pastel palette (same family as Aiko-Lingo ♡)
@@ -14,6 +15,9 @@ val PastelGreen = Color(0xFFC8E6C9)
 val PastelBlue = Color(0xFFB3E5FC)
 val PastelYellow = Color(0xFFFFF9C4)
 val PastelPurple = Color(0xFFF3E5F5)
+
+val ShoujoDarkBg = Color(0xFF1A1A1A)
+val ShoujoDarkSurface = Color(0xFF2D2D2D)
 
 // Lobby game cards: mint Shogi ♟️ · sky Go ⚫ · pink Koi-Koi 🌸
 val CuteMint = Color(0xFFC8E6C9)
