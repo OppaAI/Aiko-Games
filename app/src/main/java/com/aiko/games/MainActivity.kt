@@ -393,7 +393,6 @@ private fun Lobby(
             LoadingRow(label = "Starting Shogi…")
         } else if (shogi.inGame && shogi.game != null) {
             CuteGameCard(icon = "♟️", title = "Shogi 将棋", subtitle = "Resume vs Aiko ♡", color = CuteMint, onClick = onResumeShogi)
-            TextButton(onClick = onStartShogi) { Text("↺ New Shogi game") }
         } else {
             CuteGameCard(icon = "♟️", title = "Shogi 将棋", subtitle = "vs Aiko ♡", color = CuteMint, onClick = onStartShogi)
         }
@@ -402,7 +401,6 @@ private fun Lobby(
             LoadingRow(label = "Starting Go… (server may take a moment)")
         } else if (go.inGame && go.game != null) {
             CuteGameCard(icon = "⚫", title = "Go 囲碁", subtitle = "Resume vs Aiko ♡", color = CuteSky, onClick = onResumeGo)
-            TextButton(onClick = onStartGo) { Text("↺ New Go game") }
         } else {
             CuteGameCard(icon = "⚫", title = "Go 囲碁", subtitle = "vs Aiko ♡", color = CuteSky, onClick = onStartGo)
         }
@@ -411,7 +409,6 @@ private fun Lobby(
             LoadingRow(label = "Dealing hanafuda… 🌸")
         } else if (koi.inGame && koi.game != null) {
             CuteGameCard(icon = "🌸", title = "Koi-Koi こいこい", subtitle = "Resume vs Aiko ♡", color = ShoujoPink, onClick = onResumeKoi)
-            TextButton(onClick = onStartKoi) { Text("↺ New Koi-Koi match") }
         } else {
             CuteGameCard(icon = "🌸", title = "Koi-Koi こいこい", subtitle = "vs Aiko ♡", color = ShoujoPink, onClick = onStartKoi)
         }
@@ -422,9 +419,10 @@ private fun Lobby(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OutlinedButton(onClick = onShogiRules, modifier = Modifier.weight(1f)) { Text("📖 Shogi") }
-                OutlinedButton(onClick = onGoRules, modifier = Modifier.weight(1f)) { Text("📖 Go") }
-                OutlinedButton(onClick = onKoiRules, modifier = Modifier.weight(1f)) { Text("📖 Koi-Koi") }
+                OutlinedButton(onClick = onShogiRules, modifier = Modifier.weight(1f)) { Text("📖 Shogi", fontSize = 11.sp, maxLines = 1) }
+                // Go is a short word, we can shrink its weight slightly if needed, but 1f is standard
+                OutlinedButton(onClick = onGoRules, modifier = Modifier.weight(0.85f)) { Text("📖 Go", fontSize = 11.sp, maxLines = 1) }
+                OutlinedButton(onClick = onKoiRules, modifier = Modifier.weight(1.15f)) { Text("📖 Koi-Koi", fontSize = 11.sp, maxLines = 1) }
             }
             OutlinedButton(
                 onClick = onPreferences,
@@ -433,8 +431,7 @@ private fun Lobby(
         }
 
         Text(
-            "Engines run on Aiko-chan ♡ Shogi: YaneuraOu when configured · " +
-                "Go: KataGo when configured · Koi-Koi: Aiko's built-in brain, always ready 🌸",
+            "Credits: Engines by YaneuraOu & KataGo · Art by sunfish-shogi.github.io",
             style = MaterialTheme.typography.bodySmall,
             color = ShoujoText.copy(alpha = 0.75f),
             textAlign = TextAlign.Center,
@@ -964,14 +961,11 @@ private fun HandTray(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (res != null) {
                                 // Bundled offline wood piece (hitomoji_wood).
-                                val isPawn = hp.symbol.uppercaseChar() == 'P'
                                 Image(
                                     painter = painterResource(res),
                                     contentDescription = "${hp.symbol} (${if (hp.forBlack) "black" else "white"})",
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .scale(if (isPawn) 1.25f else 1.1f),
-                                    contentScale = ContentScale.FillBounds,
+                                    modifier = Modifier.size(36.dp),
+                                    contentScale = ContentScale.Fit,
                                 )
                             } else {
                                 Text(
@@ -1053,8 +1047,11 @@ private fun ShogiGameBoard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            TextButton(onClick = onBackToLobby) {
-                Text("← Lobby", color = ShoujoAccent, fontWeight = FontWeight.Bold)
+            Button(
+                onClick = onBackToLobby,
+                colors = ButtonDefaults.buttonColors(containerColor = ShoujoAccent)
+            ) {
+                Text("← Lobby", color = Color.White, fontWeight = FontWeight.Bold)
             }
             Text(
                 if (game.turn == userSide) "Your turn" else "Aiko's turn",
@@ -1134,16 +1131,12 @@ private fun ShogiGameBoard(
                                     // Bundled offline wood piece — orientation shows the side
                                     // (sente points up, gote points down).
                                     KomaImages.drawableFor(cell)?.let { res ->
-                                        val symbol = cell.symbol.uppercaseChar()
-                                        val isPawn = symbol == 'P'
                                         Image(
                                             painter = painterResource(res),
                                             contentDescription = SfenBoard.glyph(cell) +
                                                 if (isBlack) " (black)" else " (white)",
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .scale(if (isPawn) 1.25f else 1.1f),
-                                            contentScale = ContentScale.FillBounds,
+                                            modifier = Modifier.fillMaxSize(0.92f),
+                                            contentScale = ContentScale.Fit,
                                         )
                                     }
                                 }
