@@ -353,6 +353,7 @@ private fun Lobby(
             .fillMaxWidth()
             .verticalScroll(scroll),
     ) {
+        Spacer(modifier = Modifier.height(12.dp))
         Card(
             shape = RoundedCornerShape(40.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
@@ -369,11 +370,12 @@ private fun Lobby(
             "Aiko Games 🎮",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.ExtraBold,
-            color = ShoujoText,
+            color = ShoujoAccent,
         )
         Text(
             "Let's play together!",
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
             color = ShoujoText.copy(alpha = 0.7f),
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -385,12 +387,12 @@ private fun Lobby(
             val engine = shogi.game.engine
             val sub1 = "Resume vs Aiko" + (if (engine != null) " via $engine" else "")
             val sub2 = "${sideLabel(shogi.side)} · ${shogi.difficulty.cap()}"
-            CuteGameCard(icon = "♟️", title = "Shogi 将棋", subtitle1 = sub1, subtitle2 = sub2, color = CuteMint, onClick = onResumeShogi)
+            CuteGameCard(icon = "♟️", iconRes = KomaImages.handDrawable('P', true), title = "Shogi 将棋", subtitle1 = sub1, subtitle2 = sub2, color = CuteMint, onClick = onResumeShogi)
         } else {
             val engine = if (shogi.engineOnline == true) "YaneuraOu" else null
             val sub1 = "New Game vs Aiko" + (if (engine != null) " via $engine" else "")
             val sub2 = "${sideLabel(shogi.side)} · ${shogi.difficulty.cap()}"
-            CuteGameCard(icon = "♟️", title = "Shogi 将棋", subtitle1 = sub1, subtitle2 = sub2, color = CuteMint, onClick = onStartShogi)
+            CuteGameCard(icon = "♟️", iconRes = KomaImages.handDrawable('P', true), title = "Shogi 将棋", subtitle1 = sub1, subtitle2 = sub2, color = CuteMint, onClick = onStartShogi)
         }
 
         if (go.loading) {
@@ -398,12 +400,12 @@ private fun Lobby(
         } else if (go.inGame && go.game != null) {
             val engine = go.game.engine
             val sub1 = "Resume vs Aiko" + (if (engine != null) " via $engine" else "")
-            val sub2 = "${go.boardSize}×${go.boardSize} · ${go.difficulty.cap()}"
+            val sub2 = "${sideLabel(go.side)} · ${go.boardSize}×${go.boardSize} · ${go.difficulty.cap()}"
             CuteGameCard(icon = "⚫", title = "Go 囲碁", subtitle1 = sub1, subtitle2 = sub2, color = CuteSky, onClick = onResumeGo)
         } else {
             val engine = if (go.engineOnline == true) "KataGo" else null
             val sub1 = "New Game vs Aiko" + (if (engine != null) " via $engine" else "")
-            val sub2 = "${go.boardSize}×${go.boardSize} · ${go.difficulty.cap()}"
+            val sub2 = "${sideLabel(go.side)} · ${go.boardSize}×${go.boardSize} · ${go.difficulty.cap()}"
             CuteGameCard(icon = "⚫", title = "Go 囲碁", subtitle1 = sub1, subtitle2 = sub2, color = CuteSky, onClick = onStartGo)
         }
 
@@ -411,11 +413,11 @@ private fun Lobby(
             LoadingRow(label = "Dealing hanafuda… 🌸")
         } else if (koi.inGame && koi.game != null) {
             val sub1 = "Resume vs Aiko"
-            val sub2 = "${koi.months} months"
+            val sub2 = "${koi.difficulty.cap()} · ${koi.months} months"
             CuteGameCard(icon = "🎴", title = "Koi-Koi こいこい", subtitle1 = sub1, subtitle2 = sub2, color = ShoujoPink, onClick = onResumeKoi)
         } else {
             val sub1 = "New Game vs Aiko"
-            val sub2 = "${koi.months} months"
+            val sub2 = "${koi.difficulty.cap()} · ${koi.months} months"
             CuteGameCard(icon = "🎴", title = "Koi-Koi こいこい", subtitle1 = sub1, subtitle2 = sub2, color = ShoujoPink, onClick = onStartKoi)
         }
 
@@ -474,6 +476,7 @@ private fun Lobby(
 @Composable
 private fun CuteGameCard(
     icon: String,
+    iconRes: Int? = null,
     title: String,
     subtitle1: String,
     subtitle2: String,
@@ -491,12 +494,21 @@ private fun CuteGameCard(
             modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(icon, fontSize = 32.sp)
-            Spacer(modifier = Modifier.size(14.dp))
+            if (iconRes != null) {
+                Image(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Text(icon, fontSize = 32.sp)
+            }
+            Spacer(modifier = Modifier.width(14.dp))
             Column {
                 Text(text = title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = ShoujoText)
                 Text(text = subtitle1, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ShoujoText.copy(alpha = 0.7f))
-                Text(text = subtitle2, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ShoujoText.copy(alpha = 0.6f))
+                Text(text = subtitle2, fontSize = 11.sp, fontWeight = FontWeight.Normal, color = ShoujoText.copy(alpha = 0.6f))
             }
             Spacer(modifier = Modifier.weight(1f))
             Text("▶", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = ShoujoText.copy(alpha = 0.5f))
@@ -697,9 +709,9 @@ private fun GuideSelectionScreen(
             Spacer(modifier = Modifier.width(64.dp))
         }
 
-        CuteGameCard(icon = "♟️", title = "Shogi Guide", subtitle1 = "Learn the soul of chess", subtitle2 = "Sente/Gote · Pieces · Drops", color = CuteMint, onClick = onShogi)
+        CuteGameCard(icon = "♟️", iconRes = KomaImages.handDrawable('P', true), title = "Shogi Guide", subtitle1 = "Learn the soul of chess", subtitle2 = "Sente/Gote · Pieces · Drops", color = CuteMint, onClick = onShogi)
         CuteGameCard(icon = "⚫", title = "Go Guide", subtitle1 = "Master the board", subtitle2 = "Rules · Capture · Ko", color = CuteSky, onClick = onGo)
-        CuteGameCard(icon = "🌸", title = "Koi-Koi Guide", subtitle1 = "Play with the seasons", subtitle2 = "Hanafuda · Yaku · Match", color = ShoujoPink, onClick = onKoi)
+        CuteGameCard(icon = "🎴", title = "Koi-Koi Guide", subtitle1 = "Play with the seasons", subtitle2 = "Hanafuda · Yaku · Match", color = ShoujoPink, onClick = onKoi)
     }
 }
 
@@ -1065,11 +1077,8 @@ private fun ShogiGameBoard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Button(
-                onClick = onBackToLobby,
-                colors = ButtonDefaults.buttonColors(containerColor = ShoujoAccent)
-            ) {
-                Text("← Lobby", color = Color.White, fontWeight = FontWeight.Bold)
+            TextButton(onClick = onBackToLobby) {
+                Text("← Lobby", color = ShoujoAccent, fontWeight = FontWeight.Bold)
             }
             Text(
                 if (game.turn == userSide) "Your turn" else "Aiko's turn",
@@ -1222,17 +1231,26 @@ private fun GoGameBoard(
         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBackToLobby) { Text("Lobby") }
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                if (game.turn == userSide) "Your turn ($youLabel)" else "Aiko's turn",
-                fontWeight = FontWeight.Bold,
-                color = ShoujoText,
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            Spacer(modifier = Modifier.width(64.dp))
+        Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        TextButton(onClick = onBackToLobby) {
+            Text("← Lobby", color = ShoujoAccent, fontWeight = FontWeight.Bold)
         }
+        Text(
+            if (game.turn == userSide) "Your turn ($youLabel)" else "Aiko's turn",
+            fontWeight = FontWeight.Bold,
+            color = ShoujoText,
+        )
+        Button(
+            onClick = onResign,
+            colors = ButtonDefaults.buttonColors(containerColor = ShoujoAccent)
+        ) {
+            Text("Resign", color = Color.White)
+        }
+    }
 
         InfoCard(
             lines = buildList {
@@ -1268,21 +1286,18 @@ private fun GoGameBoard(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedButton(onClick = onPass, enabled = canInteract) { Text("Pass") }
-            OutlinedButton(onClick = onResign) { Text("Resign") }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Hints", style = MaterialTheme.typography.bodySmall, color = ShoujoText)
-                Spacer(modifier = Modifier.size(4.dp))
-                Switch(checked = state.showHints, onCheckedChange = { onToggleHints() })
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedButton(onClick = onPass, enabled = canInteract) { Text("Pass") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Hints", style = MaterialTheme.typography.bodySmall, color = ShoujoText)
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Switch(checked = state.showHints, onCheckedChange = { onToggleHints() })
+                }
             }
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        OutlinedButton(onClick = onBackToLobby) { Text("Back to lobby (keeps game)") }
     }
 }
 
@@ -1378,17 +1393,26 @@ private fun KoikoiGameBoard(
         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBackToLobby) { Text("Lobby") }
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                "🌸 Month ${game.month}/${game.months}",
-                fontWeight = FontWeight.ExtraBold,
-                color = ShoujoText,
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            Spacer(modifier = Modifier.width(64.dp))
+        Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        TextButton(onClick = onBackToLobby) {
+            Text("← Lobby", color = ShoujoAccent, fontWeight = FontWeight.Bold)
         }
+        Text(
+            "🌸 Month ${game.month}/${game.months}",
+            fontWeight = FontWeight.ExtraBold,
+            color = ShoujoText,
+        )
+        Button(
+            onClick = onResign,
+            colors = ButtonDefaults.buttonColors(containerColor = ShoujoAccent)
+        ) {
+            Text("Resign", color = Color.White)
+        }
+    }
 
         InfoCard(
             lines = buildList {
