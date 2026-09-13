@@ -90,6 +90,7 @@ import com.aiko.games.ui.theme.ShoujoAccent
 import com.aiko.games.ui.theme.ShoujoPalePink
 import com.aiko.games.ui.theme.ShoujoPink
 import com.aiko.games.ui.theme.ShoujoSoftPink
+import com.aiko.games.ui.theme.ShoujoText
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -513,12 +514,12 @@ private fun CuteGameCard(
             }
             Spacer(modifier = Modifier.width(14.dp))
             Column {
-                Text(text = title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
-                Text(text = subtitle1, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                Text(text = subtitle2, fontSize = 11.sp, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Text(text = title, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = ShoujoText)
+                Text(text = subtitle1, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ShoujoText.copy(alpha = 0.7f))
+                Text(text = subtitle2, fontSize = 11.sp, fontWeight = FontWeight.Normal, color = ShoujoText.copy(alpha = 0.6f))
             }
             Spacer(modifier = Modifier.weight(1f))
-            Text("▶", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+            Text("▶", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = ShoujoText.copy(alpha = 0.5f))
         }
     }
 }
@@ -926,7 +927,7 @@ private fun AikoCommentBox(comment: String?) {
     if (comment.isNullOrBlank()) return
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = ShoujoPalePink),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -1026,7 +1027,7 @@ private fun HandTray(
                                 Text(
                                     "×${hp.count}",
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    color = ShoujoText,
                                     fontSize = 14.sp,
                                 )
                             }
@@ -1329,7 +1330,7 @@ private fun YakuChip(yaku: KoiYaku) {
             .padding(horizontal = 8.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text("${yaku.jp} ${yaku.points}", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+        Text("${yaku.jp} ${yaku.points}", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = ShoujoText)
     }
 }
 

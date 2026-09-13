@@ -14,6 +14,7 @@ private val LightColors = lightColorScheme(
     onBackground = ShoujoText,
     surface = Color.White,
     onSurface = ShoujoText,
+    surfaceVariant = ShoujoPalePink,
 )
 
 private val DarkColors = darkColorScheme(
@@ -24,6 +25,7 @@ private val DarkColors = darkColorScheme(
     onBackground = ShoujoDarkText,
     surface = ShoujoDarkSurface,
     onSurface = ShoujoDarkText,
+    surfaceVariant = ShoujoDarkPalePink,
 )
 
 @Composable
