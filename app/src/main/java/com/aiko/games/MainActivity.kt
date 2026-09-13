@@ -87,6 +87,7 @@ import com.aiko.games.ui.theme.PieceBlack
 import com.aiko.games.ui.theme.PieceWhite
 import com.aiko.games.ui.theme.PieceWhiteStroke
 import com.aiko.games.ui.theme.ShoujoAccent
+import com.aiko.games.ui.theme.ShoujoPalePink
 import com.aiko.games.ui.theme.ShoujoPink
 import com.aiko.games.ui.theme.ShoujoSoftPink
 import com.aiko.games.ui.theme.ShoujoText
@@ -909,7 +910,7 @@ private fun AikoCommentBox(comment: String?) {
     if (comment.isNullOrBlank()) return
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = ShoujoPink),
+        colors = CardDefaults.cardColors(containerColor = ShoujoPalePink),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -1110,6 +1111,8 @@ private fun ShogiGameBoard(
             },
         )
         Spacer(modifier = Modifier.height(6.dp))
+        AikoCommentBox(game.ai_comment)
+        Spacer(modifier = Modifier.height(6.dp))
         HandTray(
             label = "Aiko's hand ($aikoLabel)",
             pieces = aikoHand,
@@ -1188,8 +1191,6 @@ private fun ShogiGameBoard(
             isOpponent = false,
             onPiece = onHandPiece,
         )
-        Spacer(modifier = Modifier.height(6.dp))
-        AikoCommentBox(game.ai_comment)
         // Row with Lobby and Resign moved to top
     }
 }

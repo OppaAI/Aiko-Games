@@ -3,6 +3,7 @@ package com.aiko.games.ui.theme
 import androidx.compose.ui.graphics.Color
 
 val ShoujoSoftPink = Color(0xFFFCE4EC)
+val ShoujoPalePink = Color(0xFFFFF1F6)
 val ShoujoAccent = Color(0xFFF06292)
 val ShoujoText = Color(0xFF4E342E)
 
