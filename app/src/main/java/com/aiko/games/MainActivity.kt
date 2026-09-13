@@ -50,6 +50,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -880,12 +881,12 @@ private fun AikoCommentBox(comment: String?) {
     if (comment.isNullOrBlank()) return
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = ShoujoPink),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-            Text("🐱", fontSize = 22.sp)
+            Text("🌸", fontSize = 22.sp)
             Spacer(modifier = Modifier.width(8.dp))
             Column {
                 Text(
@@ -894,7 +895,13 @@ private fun AikoCommentBox(comment: String?) {
                     color = ShoujoText,
                     style = MaterialTheme.typography.labelMedium,
                 )
-                Text(comment, color = ShoujoText, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    comment,
+                    color = ShoujoText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -929,7 +936,7 @@ private fun HandTray(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = ShoujoText.copy(alpha = 0.75f))
         if (pieces.isEmpty()) {
-            Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.fillMaxWidth().height(42.dp), contentAlignment = Alignment.CenterStart) {
                 Text("(empty)", style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.5f))
             }
         } else {
@@ -959,7 +966,7 @@ private fun HandTray(
                                 Image(
                                     painter = painterResource(res),
                                     contentDescription = "${hp.symbol} (${if (hp.forBlack) "black" else "white"})",
-                                    modifier = Modifier.size(36.dp),
+                                    modifier = Modifier.size(32.dp),
                                     contentScale = ContentScale.Fit,
                                 )
                             } else {
@@ -1042,11 +1049,8 @@ private fun ShogiGameBoard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Button(
-                onClick = onBackToLobby,
-                colors = ButtonDefaults.buttonColors(containerColor = ShoujoAccent)
-            ) {
-                Text("Lobby", color = Color.White)
+            TextButton(onClick = onBackToLobby) {
+                Text("← Lobby", color = ShoujoText)
             }
             Text(
                 if (game.turn == userSide) "Your turn" else "Aiko's turn",
@@ -1088,7 +1092,7 @@ private fun ShogiGameBoard(
 
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxWidth(0.9f)
                 .aspectRatio(458f / 500f)
                 .background(BoardWood, RoundedCornerShape(8.dp))
                 .border(2.dp, BoardLine, RoundedCornerShape(8.dp)),
