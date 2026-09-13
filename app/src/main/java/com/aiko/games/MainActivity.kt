@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -963,11 +964,14 @@ private fun HandTray(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (res != null) {
                                 // Bundled offline wood piece (hitomoji_wood).
+                                val isPawn = hp.symbol.uppercaseChar() == 'P'
                                 Image(
                                     painter = painterResource(res),
                                     contentDescription = "${hp.symbol} (${if (hp.forBlack) "black" else "white"})",
-                                    modifier = Modifier.size(32.dp),
-                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .scale(if (isPawn) 1.25f else 1.1f),
+                                    contentScale = ContentScale.FillBounds,
                                 )
                             } else {
                                 Text(
@@ -1050,7 +1054,7 @@ private fun ShogiGameBoard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             TextButton(onClick = onBackToLobby) {
-                Text("← Lobby", color = ShoujoText)
+                Text("← Lobby", color = ShoujoAccent, fontWeight = FontWeight.Bold)
             }
             Text(
                 if (game.turn == userSide) "Your turn" else "Aiko's turn",
@@ -1064,6 +1068,8 @@ private fun ShogiGameBoard(
                 Text("Resign", color = Color.White)
             }
         }
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         InfoCard(
             lines = buildList {
@@ -1128,12 +1134,16 @@ private fun ShogiGameBoard(
                                     // Bundled offline wood piece — orientation shows the side
                                     // (sente points up, gote points down).
                                     KomaImages.drawableFor(cell)?.let { res ->
+                                        val symbol = cell.symbol.uppercaseChar()
+                                        val isPawn = symbol == 'P'
                                         Image(
                                             painter = painterResource(res),
                                             contentDescription = SfenBoard.glyph(cell) +
                                                 if (isBlack) " (black)" else " (white)",
-                                            modifier = Modifier.fillMaxSize(0.92f),
-                                            contentScale = ContentScale.Fit,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .scale(if (isPawn) 1.25f else 1.1f),
+                                            contentScale = ContentScale.FillBounds,
                                         )
                                     }
                                 }
