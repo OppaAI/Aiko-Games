@@ -1284,6 +1284,7 @@ private fun GoGameBoard(
                     CircularProgressIndicator(modifier = Modifier.size(36.dp))
                 }
             }
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
         Row(
