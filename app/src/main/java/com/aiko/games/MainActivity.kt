@@ -1284,18 +1284,17 @@ private fun GoGameBoard(
                     CircularProgressIndicator(modifier = Modifier.size(36.dp))
                 }
             }
-        }
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedButton(onClick = onPass, enabled = canInteract) { Text("Pass") }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Hints", style = MaterialTheme.typography.bodySmall, color = ShoujoText)
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Switch(checked = state.showHints, onCheckedChange = { onToggleHints() })
-                }
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedButton(onClick = onPass, enabled = canInteract) { Text("Pass") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Hints", style = MaterialTheme.typography.bodySmall, color = ShoujoText)
+                Spacer(modifier = Modifier.size(4.dp))
+                Switch(checked = state.showHints, onCheckedChange = { onToggleHints() })
             }
         }
     }
@@ -1394,25 +1393,25 @@ private fun KoikoiGameBoard(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        TextButton(onClick = onBackToLobby) {
-            Text("← Lobby", color = ShoujoAccent, fontWeight = FontWeight.Bold)
-        }
-        Text(
-            "🌸 Month ${game.month}/${game.months}",
-            fontWeight = FontWeight.ExtraBold,
-            color = ShoujoText,
-        )
-        Button(
-            onClick = onResign,
-            colors = ButtonDefaults.buttonColors(containerColor = ShoujoAccent)
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Resign", color = Color.White)
+            TextButton(onClick = onBackToLobby) {
+                Text("← Lobby", color = ShoujoAccent, fontWeight = FontWeight.Bold)
+            }
+            Text(
+                "🌸 Month ${game.month}/${game.months}",
+                fontWeight = FontWeight.ExtraBold,
+                color = ShoujoText,
+            )
+            Button(
+                onClick = onResign,
+                colors = ButtonDefaults.buttonColors(containerColor = ShoujoAccent)
+            ) {
+                Text("Resign", color = Color.White)
+            }
         }
-    }
 
         InfoCard(
             lines = buildList {
@@ -1488,73 +1487,69 @@ private fun KoikoiGameBoard(
                                 (flipping && c.id in flipIds)
                             HanafudaCard(
                                 card = c,
-                            width = 58.dp,
-                            highlighted = glow,
-                            dimmed = (selected != null || flipping) && !glow,
-                            onClick = if (active) {
-                                { if (flipping) onFlipTake(listOf(c.id)) else onFieldTap(c.id) }
-                            } else null,
-                        )
+                                width = 58.dp,
+                                highlighted = glow,
+                                dimmed = (selected != null || flipping) && !glow,
+                                onClick = if (active) {
+                                    { if (flipping) onFlipTake(listOf(c.id)) else onFieldTap(c.id) }
+                                } else null,
+                            )
+                        }
                     }
                 }
             }
         }
-    }
-    if (flipping) {
-        Spacer(modifier = Modifier.height(4.dp))
-        val flipName = pending.flip?.let { f ->
-            val (kanji, flower) = monthLabel(f.month)
-            "$flower $kanji"
-        } ?: "a card"
-        Text(
-            "🎴 Deck flipped $flipName — tap a glowing card!",
-            fontWeight = FontWeight.Bold,
-            color = ShoujoText,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-    Spacer(modifier = Modifier.height(6.dp))
 
-    // Your hand.
-    Text("Your hand ♡", style = MaterialTheme.typography.labelMedium, color = ShoujoText.copy(alpha = 0.75f))
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        game.hand_you.forEach { c ->
-            HanafudaCard(
-                card = c,
-                width = 64.dp,
-                selected = selected == c.id,
-                dimmed = !canPlay,
-                onClick = if (canPlay) {
-                    { onHandTap(c.id) }
-                } else null,
+        if (flipping) {
+            Spacer(modifier = Modifier.height(4.dp))
+            val flipName = pending.flip?.let { f ->
+                val (kanji, flower) = monthLabel(f.month)
+                "$flower $kanji"
+            } ?: "a card"
+            Text(
+                "🎴 Deck flipped $flipName — tap a glowing card!",
+                fontWeight = FontWeight.Bold,
+                color = ShoujoText,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
-    }
-    if (canPlay) {
-        val hint = if (selected == null) "Pick a card ♡" else "Tap a glowing field card ✨"
-        Text(hint, style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.8f))
-    } else if (game.status == "playing" && game.turn != "you" && !state.loading) {
-        Text("Aiko is thinking… 💭", style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.8f))
-    }
-    if (state.loading) {
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.size(8.dp))
-            Text("Aiko is playing… 🌸", color = ShoujoText)
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Your hand.
+        Text("Your hand ♡", style = MaterialTheme.typography.labelMedium, color = ShoujoText.copy(alpha = 0.75f))
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            game.hand_you.forEach { c ->
+                HanafudaCard(
+                    card = c,
+                    width = 64.dp,
+                    selected = selected == c.id,
+                    dimmed = !canPlay,
+                    onClick = if (canPlay) {
+                        { onHandTap(c.id) }
+                    } else null,
+                )
+            }
         }
-    }
-    Spacer(modifier = Modifier.height(6.dp))
-    CapturedLine(label = "Your collection", cards = game.cap_you, yaku = game.yaku_you)
-    Spacer(modifier = Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = onBackToLobby) { Text("Lobby") }
-            OutlinedButton(onClick = onResign) { Text("Resign") }
+        if (canPlay) {
+            val hint = if (selected == null) "Pick a card ♡" else "Tap a glowing field card ✨"
+            Text(hint, style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.8f))
+        } else if (game.status == "playing" && game.turn != "you" && !state.loading) {
+            Text("Aiko is thinking… 💭", style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.8f))
         }
+        if (state.loading) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.size(8.dp))
+                Text("Aiko is playing… 🌸", color = ShoujoText)
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        CapturedLine(label = "Your collection", cards = game.cap_you, yaku = game.yaku_you)
     }
 }
 
