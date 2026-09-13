@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -83,6 +84,7 @@ import com.aiko.games.ui.theme.CuteSky
 import com.aiko.games.ui.theme.PieceBlack
 import com.aiko.games.ui.theme.PieceWhite
 import com.aiko.games.ui.theme.PieceWhiteStroke
+import com.aiko.games.ui.theme.ShoujoAccent
 import com.aiko.games.ui.theme.ShoujoPink
 import com.aiko.games.ui.theme.ShoujoSoftPink
 import com.aiko.games.ui.theme.ShoujoText
@@ -231,23 +233,9 @@ fun GamesApp(
         modifier = modifier
             .fillMaxSize()
             .background(ShoujoSoftPink)
-            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            "Aiko Games ♡🎮",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = ShoujoText,
-        )
-        Text(
-            "vs Aiko · ${ServerConfig.displayHost(baseUrl)}",
-            style = MaterialTheme.typography.bodySmall,
-            color = ShoujoText.copy(alpha = 0.7f),
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
         when (screen) {
             Screen.Lobby -> Lobby(
                 shogi = shogi,
@@ -392,13 +380,6 @@ private fun Lobby(
                         "🌸 ${koi.difficulty.cap()} · ${koi.months} mo",
                     style = MaterialTheme.typography.bodySmall,
                     color = ShoujoText,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    "🔗 ${ServerConfig.displayHost(baseUrl)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = ShoujoText.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -571,21 +552,6 @@ private fun PreferencesScreen(
             Text("Preferences", fontWeight = FontWeight.Bold, color = ShoujoText)
             Spacer(modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(64.dp))
-        }
-
-        // Server address is baked in at build time (single source of truth:
-        // AIKO_PUBLIC_BASE_URL in Aiko-chan). Shown here, not editable.
-        PrefsCard(title = "🌐 Server") {
-            Text(
-                "🔗 ${ServerConfig.displayHost(baseUrl)}",
-                color = ShoujoText,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                "Managed centrally — rebuild the app to repoint it.",
-                style = MaterialTheme.typography.bodySmall,
-                color = ShoujoText.copy(alpha = 0.7f),
-            )
         }
 
         PrefsCard(title = "♟️ Shogi") {
@@ -963,7 +929,9 @@ private fun HandTray(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = ShoujoText.copy(alpha = 0.75f))
         if (pieces.isEmpty()) {
-            Text("(empty)", style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.5f))
+            Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.CenterStart) {
+                Text("(empty)", style = MaterialTheme.typography.bodySmall, color = ShoujoText.copy(alpha = 0.5f))
+            }
         } else {
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -1065,117 +1033,130 @@ private fun ShogiGameBoard(
     val moveLeft = limitMs?.let { (it - moveElapsed).coerceAtLeast(0L) }
     val moverIsYou = game.turn == userSide
 
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = onBackToLobby) { Text("← Lobby") }
-        Spacer(modifier = Modifier.weight(1f))
-        Text(
-            if (game.turn == userSide) "Your turn" else "Aiko's turn",
-            fontWeight = FontWeight.Bold,
-            color = ShoujoText,
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        Spacer(modifier = Modifier.width(64.dp))
-    }
-
-    InfoCard(
-        lines = buildList {
-            add("You: $youLabel · Aiko: $aikoLabel · ${game.status}")
-            if (youMain != null || aikoMain != null) {
-                add("Main: You: ${formatClock(youMain)} · Aiko: ${formatClock(aikoMain)}")
-            }
-            if (game.status == "playing" && moveLeft != null) {
-                add("Timer: ⏱ ${if (moverIsYou) "Your move" else "Aiko's move"}: ${formatClock(moveLeft)} left")
-            } else if (game.status == "playing") {
-                add("Timer: ⏱ This move: ${formatClock(moveElapsed)}")
-            }
-            if (game.status != "playing") add(statusLine(game.status))
-        },
-    )
-    Spacer(modifier = Modifier.height(6.dp))
-    HandTray(
-        label = "Aiko's hand ($aikoLabel)",
-        pieces = aikoHand,
-        selectedPiece = null,
-        enabled = false,
-        isOpponent = true,
-        onPiece = {},
-    )
-    Spacer(modifier = Modifier.height(6.dp))
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(458f / 500f)
-            .background(BoardWood, RoundedCornerShape(8.dp))
-            .border(2.dp, BoardLine, RoundedCornerShape(8.dp)),
+    Column(
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Image(
-            painter = painterResource(KomaImages.BOARD_LIGHT_RES),
-            contentDescription = "Shogi board",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Button(
+                onClick = onBackToLobby,
+                colors = ButtonDefaults.buttonColors(containerColor = ShoujoAccent)
+            ) {
+                Text("Lobby", color = Color.White)
+            }
+            Text(
+                if (game.turn == userSide) "Your turn" else "Aiko's turn",
+                fontWeight = FontWeight.Bold,
+                color = ShoujoText,
+            )
+            Button(
+                onClick = onResign,
+                colors = ButtonDefaults.buttonColors(containerColor = ShoujoAccent)
+            ) {
+                Text("Resign", color = Color.White)
+            }
+        }
+
+        InfoCard(
+            lines = buildList {
+                add("You: $youLabel · Aiko: $aikoLabel · ${game.status}")
+                if (youMain != null || aikoMain != null) {
+                    add("Main: You: ${formatClock(youMain)} · Aiko: ${formatClock(aikoMain)}")
+                }
+                if (game.status == "playing" && moveLeft != null) {
+                    add("Timer: ⏱ ${if (moverIsYou) "Your move" else "Aiko's move"}: ${formatClock(moveLeft)} left")
+                } else if (game.status == "playing") {
+                    add("Timer: ⏱ This move: ${formatClock(moveElapsed)}")
+                }
+                if (game.status != "playing") add(statusLine(game.status))
+            },
         )
-        Column(modifier = Modifier.fillMaxSize().padding(4.dp)) {
-            for (row in 0 until 9) {
-                Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    for (col in 0 until 9) {
-                        val cell = grid[row][col]
-                        val sel = (state.selected as? Selection.Square)?.let { it.row == row && it.col == col } == true
-                        val bg = when {
-                            sel -> BoardSelect.copy(alpha = 0.55f)
-                            (row to col) in hints -> BoardHint.copy(alpha = 0.45f)
-                            (row to col) in last -> BoardLast.copy(alpha = 0.45f)
-                            else -> Color.Transparent
-                        }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                                .background(bg)
-                                .clickable(enabled = canInteract) { onSquare(row, col) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (cell != null) {
-                                val isBlack = KomaImages.isBlackSide(cell)
-                                // Bundled offline wood piece — orientation shows the side
-                                // (sente points up, gote points down).
-                                KomaImages.drawableFor(cell)?.let { res ->
-                                    Image(
-                                        painter = painterResource(res),
-                                        contentDescription = SfenBoard.glyph(cell) +
-                                            if (isBlack) " (black)" else " (white)",
-                                        modifier = Modifier.fillMaxSize(0.92f),
-                                        contentScale = ContentScale.Fit,
-                                    )
+        Spacer(modifier = Modifier.height(6.dp))
+        HandTray(
+            label = "Aiko's hand ($aikoLabel)",
+            pieces = aikoHand,
+            selectedPiece = null,
+            enabled = false,
+            isOpponent = true,
+            onPiece = {},
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(458f / 500f)
+                .background(BoardWood, RoundedCornerShape(8.dp))
+                .border(2.dp, BoardLine, RoundedCornerShape(8.dp)),
+        ) {
+            Image(
+                painter = painterResource(KomaImages.BOARD_LIGHT_RES),
+                contentDescription = "Shogi board",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.FillBounds,
+            )
+            Column(modifier = Modifier.fillMaxSize().padding(4.dp)) {
+                for (row in 0 until 9) {
+                    Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        for (col in 0 until 9) {
+                            val cell = grid[row][col]
+                            val sel = (state.selected as? Selection.Square)?.let { it.row == row && it.col == col } == true
+                            val bg = when {
+                                sel -> BoardSelect.copy(alpha = 0.55f)
+                                (row to col) in hints -> BoardHint.copy(alpha = 0.45f)
+                                (row to col) in last -> BoardLast.copy(alpha = 0.45f)
+                                else -> Color.Transparent
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxSize()
+                                    .background(bg)
+                                    .clickable(enabled = canInteract) { onSquare(row, col) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (cell != null) {
+                                    val isBlack = KomaImages.isBlackSide(cell)
+                                    // Bundled offline wood piece — orientation shows the side
+                                    // (sente points up, gote points down).
+                                    KomaImages.drawableFor(cell)?.let { res ->
+                                        Image(
+                                            painter = painterResource(res),
+                                            contentDescription = SfenBoard.glyph(cell) +
+                                                if (isBlack) " (black)" else " (white)",
+                                            modifier = Modifier.fillMaxSize(0.92f),
+                                            contentScale = ContentScale.Fit,
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-        if (state.loading) {
-            Box(Modifier.fillMaxSize().background(Color(0x44000000)), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.size(36.dp))
+            if (state.loading) {
+                Box(Modifier.fillMaxSize().background(Color(0x44000000)), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                }
             }
         }
-    }
 
-    Spacer(modifier = Modifier.height(6.dp))
-    HandTray(
-        label = "Your hand ($youLabel)",
-        pieces = yourHand,
-        selectedPiece = selectedHand,
-        enabled = canInteract,
-        isOpponent = false,
-        onPiece = onHandPiece,
-    )
-    Spacer(modifier = Modifier.height(6.dp))
-    AikoCommentBox(game.ai_comment)
-    Spacer(modifier = Modifier.height(12.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(onClick = onBackToLobby) { Text("Lobby") }
-        OutlinedButton(onClick = onResign) { Text("Resign") }
+        Spacer(modifier = Modifier.height(6.dp))
+        HandTray(
+            label = "Your hand ($youLabel)",
+            pieces = yourHand,
+            selectedPiece = selectedHand,
+            enabled = canInteract,
+            isOpponent = false,
+            onPiece = onHandPiece,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        AikoCommentBox(game.ai_comment)
+        // Row with Lobby and Resign moved to top
     }
 }
 
@@ -1212,67 +1193,72 @@ private fun GoGameBoard(
     val canInteract = !state.loading && game.status == "playing" && game.turn == userSide
     val youLabel = if (userSide == "black") "Black ⚫" else "White ⚪"
 
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = onBackToLobby) { Text("← Lobby") }
-        Spacer(modifier = Modifier.weight(1f))
-        Text(
-            if (game.turn == userSide) "Your turn ($youLabel)" else "Aiko's turn",
-            fontWeight = FontWeight.Bold,
-            color = ShoujoText,
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        Spacer(modifier = Modifier.width(64.dp))
-    }
+    Column(
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBackToLobby) { Text("Lobby") }
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                if (game.turn == userSide) "Your turn ($youLabel)" else "Aiko's turn",
+                fontWeight = FontWeight.Bold,
+                color = ShoujoText,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(64.dp))
+        }
 
-    InfoCard(
-        lines = buildList {
-            add("${game.size}×${game.size} · ${game.status}${game.engine?.let { " · $it" } ?: ""}")
-            add("Captures — You/Aiko context: B taken ${game.captured_black} · W taken ${game.captured_white} · Moves: ${game.moves.size}")
-            game.last_move?.let { add("Last: $it") }
-            if (game.status != "playing") add(statusLine(game.status))
-        },
-    )
-    Spacer(modifier = Modifier.height(6.dp))
-    AikoCommentBox(game.ai_comment)
-    Spacer(modifier = Modifier.height(8.dp))
-
-    Box(modifier = Modifier.fillMaxWidth()) {
-        GoBoardView(
-            size = game.size,
-            stones = game.stones,
-            hints = hints,
-            lastMove = last,
-            enabled = canInteract,
-            onTap = onTap,
-            modifier = Modifier.fillMaxWidth(),
+        InfoCard(
+            lines = buildList {
+                add("${game.size}×${game.size} · ${game.status}${game.engine?.let { " · $it" } ?: ""}")
+                add("Captures — You/Aiko context: B taken ${game.captured_black} · W taken ${game.captured_white} · Moves: ${game.moves.size}")
+                game.last_move?.let { add("Last: $it") }
+                if (game.status != "playing") add(statusLine(game.status))
+            },
         )
-        if (state.loading) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .background(Color(0x44000000)),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(36.dp))
+        Spacer(modifier = Modifier.height(6.dp))
+        AikoCommentBox(game.ai_comment)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Box(modifier = Modifier.fillMaxWidth()) {
+            GoBoardView(
+                size = game.size,
+                stones = game.stones,
+                hints = hints,
+                lastMove = last,
+                enabled = canInteract,
+                onTap = onTap,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (state.loading) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(Color(0x44000000)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                }
             }
         }
-    }
 
-    Spacer(modifier = Modifier.height(12.dp))
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedButton(onClick = onPass, enabled = canInteract) { Text("Pass") }
-        OutlinedButton(onClick = onResign) { Text("Resign") }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Hints", style = MaterialTheme.typography.bodySmall, color = ShoujoText)
-            Spacer(modifier = Modifier.size(4.dp))
-            Switch(checked = state.showHints, onCheckedChange = { onToggleHints() })
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedButton(onClick = onPass, enabled = canInteract) { Text("Pass") }
+            OutlinedButton(onClick = onResign) { Text("Resign") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Hints", style = MaterialTheme.typography.bodySmall, color = ShoujoText)
+                Spacer(modifier = Modifier.size(4.dp))
+                Switch(checked = state.showHints, onCheckedChange = { onToggleHints() })
+            }
         }
+        Spacer(modifier = Modifier.height(4.dp))
+        OutlinedButton(onClick = onBackToLobby) { Text("Back to lobby (keeps game)") }
     }
-    Spacer(modifier = Modifier.height(4.dp))
-    OutlinedButton(onClick = onBackToLobby) { Text("Back to lobby (keeps game)") }
 }
 
 // ---------------------------------------------------------------- Koi-Koi ---
@@ -1363,92 +1349,96 @@ private fun KoikoiGameBoard(
         )
     }
 
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = onBackToLobby) { Text("← Lobby") }
-        Spacer(modifier = Modifier.weight(1f))
-        Text(
-            "🌸 Month ${game.month}/${game.months}",
-            fontWeight = FontWeight.ExtraBold,
-            color = ShoujoText,
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        Spacer(modifier = Modifier.width(64.dp))
-    }
-
-    InfoCard(
-        lines = buildList {
-            add("You $youTotal pts · Aiko $aikoTotal pts · ${if (game.oya == "you") "you deal" else "Aiko deals"} · ${game.status}")
-            if (game.status == "finished") {
-                add(
-                    when (game.winner) {
-                        "you" -> "🏆 You win the match! おめでとう!"
-                        "aiko" -> "Aiko wins the match 🌸 Good game!"
-                        else -> "Draw — good game! 🌸"
-                    },
-                )
-            }
-        },
-    )
-    game.round_result?.let { r ->
-        Spacer(modifier = Modifier.height(6.dp))
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = CuteMint),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
+    Column(
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBackToLobby) { Text("Lobby") }
+            Spacer(modifier = Modifier.weight(1f))
             Text(
-                when {
-                    r.reason == "resigned" -> "🏳️ ${if (r.winner == "you") "Aiko" else "You"} resigned"
-                    r.winner == "draw" -> "🤝 Month drawn — no points"
-                    r.winner == "you" -> "🌸 You take the month +${r.points} (${r.base}×${r.multiplier})!"
-                    else -> "🌸 Aiko takes the month +${r.points} (${r.base}×${r.multiplier})"
-                },
+                "🌸 Month ${game.month}/${game.months}",
                 fontWeight = FontWeight.ExtraBold,
                 color = ShoujoText,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(10.dp),
             )
+            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(64.dp))
         }
-    }
-    Spacer(modifier = Modifier.height(6.dp))
-    AikoCommentBox(game.ai_comment)
-    Spacer(modifier = Modifier.height(6.dp))
 
-    // Aiko's side: hand backs + captured.
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("🐱", fontSize = 18.sp)
-        repeat(game.hand_aiko_count) { HanafudaBack(width = 30.dp) }
-    }
-    Spacer(modifier = Modifier.height(4.dp))
-    CapturedLine(label = "Aiko's collection", cards = game.cap_aiko, yaku = game.yaku_aiko)
-    Spacer(modifier = Modifier.height(6.dp))
-
-    // Field (table).
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1B5E20).copy(alpha = 0.85f)),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            if (game.field.isEmpty()) {
-                Text("✨ table clear! ✨", color = Color.White, fontWeight = FontWeight.Bold)
+        InfoCard(
+            lines = buildList {
+                add("You $youTotal pts · Aiko $aikoTotal pts · ${if (game.oya == "you") "you deal" else "Aiko deals"} · ${game.status}")
+                if (game.status == "finished") {
+                    add(
+                        when (game.winner) {
+                            "you" -> "🏆 You win the match! おめでとう!"
+                            "aiko" -> "Aiko wins the match 🌸 Good game!"
+                            else -> "Draw — good game! 🌸"
+                        },
+                    )
+                }
+            },
+        )
+        game.round_result?.let { r ->
+            Spacer(modifier = Modifier.height(6.dp))
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = CuteMint),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    when {
+                        r.reason == "resigned" -> "🏳️ ${if (r.winner == "you") "Aiko" else "You"} resigned"
+                        r.winner == "draw" -> "🤝 Month drawn — no points"
+                        r.winner == "you" -> "🌸 You take the month +${r.points} (${r.base}×${r.multiplier})!"
+                        else -> "🌸 Aiko takes the month +${r.points} (${r.base}×${r.multiplier})"
+                    },
+                    fontWeight = FontWeight.ExtraBold,
+                    color = ShoujoText,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(10.dp),
+                )
             }
-            game.field.chunked(4).forEach { rowCards ->
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    rowCards.forEach { c ->
-                        val glow = c.id in glowIds || c.id in flipIds
-                        val active = (canPlay && selected != null && c.id in glowIds) ||
-                            (flipping && c.id in flipIds)
-                        HanafudaCard(
-                            card = c,
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        AikoCommentBox(game.ai_comment)
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Aiko's side: hand backs + captured.
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("🐱", fontSize = 18.sp)
+            repeat(game.hand_aiko_count) { HanafudaBack(width = 30.dp) }
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        CapturedLine(label = "Aiko's collection", cards = game.cap_aiko, yaku = game.yaku_aiko)
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Field (table).
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1B5E20).copy(alpha = 0.85f)),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (game.field.isEmpty()) {
+                    Text("✨ table clear! ✨", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                game.field.chunked(4).forEach { rowCards ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        rowCards.forEach { c ->
+                            val glow = c.id in glowIds || c.id in flipIds
+                            val active = (canPlay && selected != null && c.id in glowIds) ||
+                                (flipping && c.id in flipIds)
+                            HanafudaCard(
+                                card = c,
                             width = 58.dp,
                             highlighted = glow,
                             dimmed = (selected != null || flipping) && !glow,
@@ -1512,9 +1502,10 @@ private fun KoikoiGameBoard(
     Spacer(modifier = Modifier.height(6.dp))
     CapturedLine(label = "Your collection", cards = game.cap_you, yaku = game.yaku_you)
     Spacer(modifier = Modifier.height(12.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(onClick = onBackToLobby) { Text("Lobby") }
-        OutlinedButton(onClick = onResign) { Text("Resign") }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = onBackToLobby) { Text("Lobby") }
+            OutlinedButton(onClick = onResign) { Text("Resign") }
+        }
     }
 }
 
