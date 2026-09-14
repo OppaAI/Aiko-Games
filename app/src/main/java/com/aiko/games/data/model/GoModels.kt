@@ -8,6 +8,7 @@ data class GoStartRequest(
     val size: Int = 9,
     val difficulty: String? = null,
     val side: String? = "black",
+    val use_engine: Boolean = true,
 )
 
 @Serializable

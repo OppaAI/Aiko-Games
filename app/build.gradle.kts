@@ -17,7 +17,7 @@ val localProps = Properties().apply {
 val aikoServerUrl: String = (
     localProps.getProperty("aikoServerUrl")
         ?: System.getenv("AIKO_PUBLIC_BASE_URL")
-        ?: "https://aiko.ide-chroma.ts.net/"
+        ?: "http://localhost:8787/"
     ).trim().removeSuffix("/") + "/"
 
 android {

@@ -3,6 +3,7 @@ package com.aiko.games.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiko.games.data.ApiErrors
+import com.aiko.games.data.SettingsRepository
 import com.aiko.games.data.SfenBoard
 import com.aiko.games.data.model.GameState
 import com.aiko.games.data.model.MoveRequest
@@ -36,14 +37,22 @@ data class ShogiUiState(
     val difficulty: String = "medium",
     val side: String = "black",
     val difficulties: List<String> = listOf("easy", "medium", "hard"),
+    val useEngine: Boolean = true,
     val inGame: Boolean = false,
 )
 
 class ShogiViewModel(
     private val api: ShogiApi,
+    private val repository: SettingsRepository,
 ) : ViewModel() {
 
-    private val _ui = MutableStateFlow(ShogiUiState())
+    private val _ui = MutableStateFlow(
+        ShogiUiState(
+            difficulty = repository.getShogiDifficulty(),
+            side = repository.getShogiSide(),
+            useEngine = repository.isShogiEngineEnabled(),
+        )
+    )
     val ui: StateFlow<ShogiUiState> = _ui.asStateFlow()
 
     /** User's color for the current/next game; the board's side to move is authoritative. */
@@ -95,6 +104,7 @@ class ShogiViewModel(
         val normalized = level.trim().lowercase()
         if (normalized in _ui.value.difficulties) {
             _ui.update { it.copy(difficulty = normalized) }
+            repository.setShogiDifficulty(normalized)
         }
     }
 
@@ -102,7 +112,13 @@ class ShogiViewModel(
         val normalized = side.trim().lowercase()
         if (normalized == "black" || normalized == "white") {
             _ui.update { it.copy(side = normalized) }
+            repository.setShogiSide(normalized)
         }
+    }
+
+    fun setUseEngine(enabled: Boolean) {
+        _ui.update { it.copy(useEngine = enabled) }
+        repository.setShogiEngineEnabled(enabled)
     }
 
     fun startGame() {
@@ -114,6 +130,7 @@ class ShogiViewModel(
                         mode = "vs_ai",
                         difficulty = _ui.value.difficulty,
                         side = _ui.value.side,
+                        use_engine = _ui.value.useEngine,
                     ),
                 )
                 val userSide = g.side.ifBlank { _ui.value.side }

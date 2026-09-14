@@ -3,6 +3,7 @@ package com.aiko.games.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiko.games.data.ApiErrors
+import com.aiko.games.data.SettingsRepository
 import com.aiko.games.data.model.KoiMoveRequest
 import com.aiko.games.data.model.KoiPlay
 import com.aiko.games.data.model.KoiStartRequest
@@ -30,9 +31,15 @@ data class KoiUiState(
 
 class KoiKoiViewModel(
     private val api: KoiKoiApi,
+    private val repository: SettingsRepository,
 ) : ViewModel() {
 
-    private val _ui = MutableStateFlow(KoiUiState())
+    private val _ui = MutableStateFlow(
+        KoiUiState(
+            difficulty = repository.getKoiDifficulty(),
+            months = repository.getKoiMonths(),
+        )
+    )
     val ui: StateFlow<KoiUiState> = _ui.asStateFlow()
 
     private fun errorMessage(e: Exception, fallback: String): String =
@@ -70,12 +77,14 @@ class KoiKoiViewModel(
         val normalized = level.trim().lowercase()
         if (normalized in _ui.value.difficulties) {
             _ui.update { it.copy(difficulty = normalized) }
+            repository.setKoiDifficulty(normalized)
         }
     }
 
     fun setMonths(n: Int) {
         if (n in _ui.value.availableMonths) {
             _ui.update { it.copy(months = n) }
+            repository.setKoiMonths(n)
         }
     }
 

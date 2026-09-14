@@ -2,7 +2,7 @@
 
 **Android companion for playing **Shogi (将棋)**, **Go (囲碁)** and **Koi-Koi (こいこい)** with Aiko — locally deployed, privacy-first.**
 
-Connects to your Aiko-chan server over Tailscale:
+Connects to your local Aiko-chan server:
 
 | Game | API | Strong AI (optional) | Fallback |
 |------|-----|----------------------|----------|
@@ -44,7 +44,7 @@ Connects to your Aiko-chan server over Tailscale:
 
 1. Merge Aiko-chan **Go API** (PR #157) and ensure Shogi package is mounted.
 2. Clone this repo, open in Android Studio, sync Gradle.
-3. From Aiko-chan run `util/sync_app_server_url.sh` to bake in the Tailscale URL, then build.
+3. From Aiko-chan run `util/sync_app_server_url.sh` to bake in the server URL, then build.
 4. **Shogi (将棋) vs Aiko**, **Go (囲碁) vs Aiko** or **Koi-Koi (こいこい) vs Aiko**.
 
 ---

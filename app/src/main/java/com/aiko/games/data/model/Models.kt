@@ -7,6 +7,7 @@ data class StartRequest(
     val mode: String = "vs_ai",
     val difficulty: String? = null,
     val side: String? = "black",
+    val use_engine: Boolean = true,
 )
 
 @Serializable

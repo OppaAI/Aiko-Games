@@ -3,6 +3,7 @@ package com.aiko.games.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiko.games.data.ApiErrors
+import com.aiko.games.data.SettingsRepository
 import com.aiko.games.data.GoCoords
 import com.aiko.games.data.model.GoGameState
 import com.aiko.games.data.model.GoMoveRequest
@@ -25,15 +26,24 @@ data class GoUiState(
     val boardSize: Int = 9,
     val availableSizes: List<Int> = listOf(9, 13, 19),
     val side: String = "black",
+    val useEngine: Boolean = true,
     val showHints: Boolean = true,
     val inGame: Boolean = false,
 )
 
 class GoViewModel(
     private val api: GoApi,
+    private val repository: SettingsRepository,
 ) : ViewModel() {
 
-    private val _ui = MutableStateFlow(GoUiState())
+    private val _ui = MutableStateFlow(
+        GoUiState(
+            difficulty = repository.getGoDifficulty(),
+            side = repository.getGoSide(),
+            boardSize = repository.getGoBoardSize(),
+            useEngine = repository.isGoEngineEnabled(),
+        )
+    )
     val ui: StateFlow<GoUiState> = _ui.asStateFlow()
 
     /** User's color for the current/next game; the board's side to move is authoritative. */
@@ -80,6 +90,7 @@ class GoViewModel(
         val normalized = level.trim().lowercase()
         if (normalized in _ui.value.difficulties) {
             _ui.update { it.copy(difficulty = normalized) }
+            repository.setGoDifficulty(normalized)
         }
     }
 
@@ -87,7 +98,13 @@ class GoViewModel(
         val normalized = side.trim().lowercase()
         if (normalized == "black" || normalized == "white") {
             _ui.update { it.copy(side = normalized) }
+            repository.setGoSide(normalized)
         }
+    }
+
+    fun setUseEngine(enabled: Boolean) {
+        _ui.update { it.copy(useEngine = enabled) }
+        repository.setGoEngineEnabled(enabled)
     }
 
     fun toggleHints() {
@@ -97,6 +114,7 @@ class GoViewModel(
     fun setBoardSize(size: Int) {
         if (size in _ui.value.availableSizes) {
             _ui.update { it.copy(boardSize = size) }
+            repository.setGoBoardSize(size)
         }
     }
 
@@ -110,6 +128,7 @@ class GoViewModel(
                         size = _ui.value.boardSize,
                         difficulty = _ui.value.difficulty,
                         side = _ui.value.side,
+                        use_engine = _ui.value.useEngine,
                     ),
                 )
                 val userSide = g.side.ifBlank { _ui.value.side }

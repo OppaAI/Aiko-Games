@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aiko.games.data.model.KoiCard
 import com.aiko.games.data.model.KoiYaku
+import com.aiko.games.data.SettingsRepository
 import com.aiko.games.data.SfenBoard
 import com.aiko.games.data.ServerConfig
 import com.aiko.games.data.remote.GoApi
@@ -115,9 +116,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val settingsRepository = SettingsRepository(this)
         enableEdgeToEdge()
         setContent {
-            var darkTheme by remember { mutableStateOf(false) }
+            var darkTheme by remember { mutableStateOf(settingsRepository.isDarkTheme()) }
             AikoGamesTheme(darkTheme = darkTheme) {
                 // Baked in at build time from AIKO_PUBLIC_BASE_URL
                 // (see local.properties → BuildConfig). No in-app override.
@@ -132,7 +134,7 @@ class MainActivity : ComponentActivity() {
                     factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                            return ShogiViewModel(shogiApi) as T
+                            return ShogiViewModel(shogiApi, settingsRepository) as T
                         }
                     },
                 )
@@ -141,7 +143,7 @@ class MainActivity : ComponentActivity() {
                     factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                            return GoViewModel(goApi) as T
+                            return GoViewModel(goApi, settingsRepository) as T
                         }
                     },
                 )
@@ -150,7 +152,7 @@ class MainActivity : ComponentActivity() {
                     factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                            return KoiKoiViewModel(koiApi) as T
+                            return KoiKoiViewModel(koiApi, settingsRepository) as T
                         }
                     },
                 )
@@ -162,7 +164,10 @@ class MainActivity : ComponentActivity() {
                         koiVm = koiVm,
                         baseUrl = baseUrl,
                         darkTheme = darkTheme,
-                        onToggleDarkTheme = { darkTheme = !darkTheme },
+                        onToggleDarkTheme = {
+                            darkTheme = !darkTheme
+                            settingsRepository.setDarkTheme(darkTheme)
+                        },
                         modifier = Modifier.padding(padding),
                     )
                 }
@@ -251,11 +256,20 @@ fun GamesApp(
                 go = go,
                 koi = koi,
                 baseUrl = baseUrl,
-                onStartShogi = { shogiVm.startGame() },
+                onStartShogi = {
+                    shogiVm.startGame()
+                    screen = Screen.ShogiGame
+                },
                 onResumeShogi = { screen = Screen.ShogiGame },
-                onStartGo = { goVm.startGame() },
+                onStartGo = {
+                    goVm.startGame()
+                    screen = Screen.GoGame
+                },
                 onResumeGo = { screen = Screen.GoGame },
-                onStartKoi = { koiVm.startGame() },
+                onStartKoi = {
+                    koiVm.startGame()
+                    screen = Screen.KoikoiGame
+                },
                 onResumeKoi = { screen = Screen.KoikoiGame },
                 onGuides = { screen = Screen.GuideSelection },
                 onPreferences = { screen = Screen.Preferences },
@@ -268,11 +282,13 @@ fun GamesApp(
                 darkTheme = darkTheme,
                 onToggleDarkTheme = onToggleDarkTheme,
                 onShogiDifficulty = { shogiVm.setDifficulty(it) },
+                onShogiSide = { shogiVm.setSide(it) },
+                onShogiEngine = { shogiVm.setUseEngine(it) },
                 onGoDifficulty = { goVm.setDifficulty(it) },
                 onKoiDifficulty = { koiVm.setDifficulty(it) },
-                onShogiSide = { shogiVm.setSide(it) },
                 onGoSide = { goVm.setSide(it) },
                 onGoSize = { goVm.setBoardSize(it) },
+                onGoEngine = { goVm.setUseEngine(it) },
                 onToggleGoHints = { goVm.toggleHints() },
                 onKoiMonths = { koiVm.setMonths(it) },
                 onBack = { screen = Screen.Lobby },
@@ -547,8 +563,10 @@ private fun PreferencesScreen(
     onGoDifficulty: (String) -> Unit,
     onKoiDifficulty: (String) -> Unit,
     onShogiSide: (String) -> Unit,
+    onShogiEngine: (Boolean) -> Unit,
     onGoSide: (String) -> Unit,
     onGoSize: (Int) -> Unit,
+    onGoEngine: (Boolean) -> Unit,
     onToggleGoHints: () -> Unit,
     onKoiMonths: (Int) -> Unit,
     onBack: () -> Unit,
@@ -594,6 +612,12 @@ private fun PreferencesScreen(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Use Strong Engine (YaneuraOu)", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.weight(1f))
+                Switch(checked = shogi.useEngine, onCheckedChange = { onShogiEngine(it) })
+            }
         }
 
         PrefsCard(title = "⚫ Go") {
@@ -624,6 +648,12 @@ private fun PreferencesScreen(
                         OutlinedButton(onClick = { onGoSize(n) }) { Text("${n}×$n") }
                     }
                 }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Use Strong Engine (KataGo)", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.weight(1f))
+                Switch(checked = go.useEngine, onCheckedChange = { onGoEngine(it) })
             }
             Spacer(modifier = Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1056,7 +1086,13 @@ private fun ShogiGameBoard(
     onResign: () -> Unit,
     onBackToLobby: () -> Unit,
 ) {
-    val game = state.game ?: return
+    val game = state.game
+    if (game == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
     val grid = remember(game.sfen) { SfenBoard.parseGrid(game.sfen) }
     val blackHand = remember(game.sfen) { SfenBoard.blackHand(game.sfen) }
     val whiteHand = remember(game.sfen) { SfenBoard.whiteHand(game.sfen) }
@@ -1240,7 +1276,13 @@ private fun GoGameBoard(
     onToggleHints: () -> Unit,
     onBackToLobby: () -> Unit,
 ) {
-    val game = state.game ?: return
+    val game = state.game
+    if (game == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
     val userSide = game.side.ifBlank { "black" }
     val canInteract = !state.loading && game.status == "playing" && game.turn == userSide
     val youLabel = if (userSide == "black") "Black ⚫" else "White ⚪"
@@ -1249,7 +1291,7 @@ private fun GoGameBoard(
         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
+    Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
@@ -1372,7 +1414,13 @@ private fun KoikoiGameBoard(
     onResign: () -> Unit,
     onBackToLobby: () -> Unit,
 ) {
-    val game = state.game ?: return
+    val game = state.game
+    if (game == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
     val pending = game.pending
     val deciding = pending?.kind == "decision"
     val flipping = pending?.kind == "flip"
