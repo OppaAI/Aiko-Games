@@ -935,17 +935,31 @@ private fun ShogiTrainingBoard(
                 enabled = false, isOpponent = false, onPiece = {})
         }
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onStart, enabled = !state.running && !state.loading,
-                modifier = Modifier.weight(1f)) {
-                Text(if (state.loading) "Starting…" else "▶ Start")
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(
+                onClick = onStart,
+                enabled = !state.running && !state.loading,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(if (state.loading) "Starting…" else "▶ Start", maxLines = 1, fontSize = 12.sp)
             }
-            OutlinedButton(onClick = onStop, enabled = state.running,
-                modifier = Modifier.weight(1f)) {
-                Text("⏹ Stop")
+            OutlinedButton(
+                onClick = onStop,
+                enabled = state.running,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("⏹ Stop", maxLines = 1, fontSize = 12.sp)
             }
-            OutlinedButton(onClick = onRefresh, modifier = Modifier.weight(1f)) {
-                Text("↻ Refresh")
+            OutlinedButton(
+                onClick = onRefresh,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("↻ Refresh", maxLines = 1, fontSize = 12.sp)
+            }
             }
         }
 

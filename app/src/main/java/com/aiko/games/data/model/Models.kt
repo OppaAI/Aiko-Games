@@ -69,6 +69,7 @@ data class SelfplayState(
     val status: String = "idle",
     val last_winner: String = "",
     val last_end: String = "",
+    val aiko_side: String = "",
     val aiko_wins: Int = 0,
     val engine_wins: Int = 0,
     val draws: Int = 0,
