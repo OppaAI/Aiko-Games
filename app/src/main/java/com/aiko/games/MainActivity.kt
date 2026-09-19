@@ -616,7 +616,9 @@ private fun PreferencesScreen(
         modifier = Modifier.fillMaxWidth().verticalScroll(scroll),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("← Lobby") }
+            TextButton(onClick = onBack) {
+                Text("← Lobby", color = ShoujoAccent, fontWeight = FontWeight.Bold)
+            }
             Spacer(modifier = Modifier.weight(1f))
             Text("Preferences", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             Spacer(modifier = Modifier.weight(1f))
@@ -725,8 +727,8 @@ private fun PreferencesScreen(
             )
         }
 
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth(0.9f)) {
-            Text("Done")
+        TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth(0.9f)) {
+            Text("← Done", color = ShoujoAccent, fontWeight = FontWeight.Bold)
         }
         Spacer(modifier = Modifier.height(16.dp))
     }
@@ -972,7 +974,9 @@ private fun ShogiRulesScreen(onBack: () -> Unit) {
         modifier = Modifier.fillMaxWidth().verticalScroll(scroll),
         horizontalAlignment = Alignment.Start,
     ) {
-        TextButton(onClick = onBack) { Text("← Back") }
+        TextButton(onClick = onBack) {
+            Text("← Back", color = ShoujoAccent, fontWeight = FontWeight.Bold)
+        }
         RulesSection("Objective — checkmate (詰み)") {
             Text(
                 "Checkmate the opponent's king (Black 玉, White 王): attack it so it has " +
@@ -1037,8 +1041,8 @@ private fun ShogiRulesScreen(onBack: () -> Unit) {
                     "otherwise casual legal moves.",
             )
         }
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-            Text("Back to lobby")
+        TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+            Text("← Back to lobby", color = ShoujoAccent, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1050,7 +1054,9 @@ private fun GoRulesScreen(onBack: () -> Unit) {
         modifier = Modifier.fillMaxWidth().verticalScroll(scroll),
         horizontalAlignment = Alignment.Start,
     ) {
-        TextButton(onClick = onBack) { Text("← Back") }
+        TextButton(onClick = onBack) {
+            Text("← Back", color = ShoujoAccent, fontWeight = FontWeight.Bold)
+        }
         RulesSection("Objective — surround territory") {
             Text(
                 "Surround empty points (territory) with your stones, and capture enemy " +
@@ -1112,8 +1118,8 @@ private fun GoRulesScreen(onBack: () -> Unit) {
                     "GNU Go is a lighter alternative for future server wiring.",
             )
         }
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-            Text("Back to lobby")
+        TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+            Text("← Back to lobby", color = ShoujoAccent, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1829,7 +1835,9 @@ private fun KoikoiRulesScreen(onBack: () -> Unit) {
         modifier = Modifier.fillMaxWidth().verticalScroll(scroll),
         horizontalAlignment = Alignment.Start,
     ) {
-        TextButton(onClick = onBack) { Text("← Back") }
+        TextButton(onClick = onBack) {
+            Text("← Back", color = ShoujoAccent, fontWeight = FontWeight.Bold)
+        }
         RulesSection("What is Koi-Koi? 🌸") {
             Text(
                 "Koi-koi (こいこい) is the classic 2-player hanafuda card game. " +
@@ -1894,8 +1902,8 @@ private fun KoikoiRulesScreen(onBack: () -> Unit) {
                     "Thank you for the beautiful deck! 🌸",
             )
         }
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-            Text("Back to lobby ♡")
+        TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+            Text("← Back to lobby ♡", color = ShoujoAccent, fontWeight = FontWeight.Bold)
         }
     }
 }
