@@ -364,7 +364,7 @@ fun GamesApp(
             )
             Screen.GoTraining -> GoTrainingBoard(
                 state = goTraining,
-                onStart = { goTrainingVm.start() },
+                onStart = { goTrainingVm.start(boardSize = go.boardSize) },
                 onStop = { goTrainingVm.stop() },
                 onRefresh = { goTrainingVm.refresh() },
                 onBack = { screen = Screen.TrainingSelection },

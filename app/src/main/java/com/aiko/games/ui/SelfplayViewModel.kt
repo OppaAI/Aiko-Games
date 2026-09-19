@@ -60,6 +60,7 @@ class SelfplayViewModel(
     val ui: StateFlow<SelfplayUiState> = _ui.asStateFlow()
 
     private var pollJob: Job? = null
+    private var pollActive = false
     // Stale-response guard: polls + manual refreshes can return out of order.
     // A snapshot applies only if it advances the game, grows the move list,
     // or ends the run — otherwise an old response would visibly rewind moves.
@@ -108,20 +109,21 @@ class SelfplayViewModel(
             try {
                 applyApi(api.state())
                 _ui.update { it.copy(error = null) }
+                if (_ui.value.running) startPolling()
             } catch (e: Exception) {
                 _ui.update { it.copy(error = errorMessage(e, "Could not reach training session")) }
             }
         }
     }
 
-    fun start(games: Int = 1) {
+    fun start(games: Int = 1, boardSize: Int? = null) {
         if (_ui.value.running || _ui.value.loading) return
         lastAppliedGame = -1
         lastAppliedMoves = -1
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
             try {
-                applyApi(api.start(SelfplayStartRequest(games.coerceIn(1, 20))))
+                applyApi(api.start(SelfplayStartRequest(games.coerceIn(1, 20), boardSize)))
                 _ui.update { it.copy(loading = false) }
                 startPolling()
             } catch (e: Exception) {
@@ -141,17 +143,32 @@ class SelfplayViewModel(
     }
 
     private fun startPolling() {
+        if (pollActive) return
+        pollActive = true
         pollJob?.cancel()
         pollJob = viewModelScope.launch {
-            while (true) {
-                delay(2000L)
-                val s = try {
-                    api.state()
-                } catch (e: Exception) {
-                    break
+            var failures = 0
+            try {
+                while (true) {
+                    delay(1000L)
+                    val s = try {
+                        api.state()
+                    } catch (e: Exception) {
+                        // Transient error: keep the last good board and retry.
+                        // A single failed poll must never freeze the game view.
+                        failures += 1
+                        if (failures >= 10) {
+                            _ui.update { it.copy(error = errorMessage(e, "Lost connection to training")) }
+                            break
+                        }
+                        continue
+                    }
+                    failures = 0
+                    applyApi(s)
+                    if (!s.running) break
                 }
-                applyApi(s)
-                if (!s.running) break
+            } finally {
+                pollActive = false
             }
         }
     }

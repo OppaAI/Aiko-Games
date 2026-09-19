@@ -57,6 +57,7 @@ data class WarmupResponse(
 @Serializable
 data class SelfplayStartRequest(
     val games: Int = 1,
+    val board_size: Int? = null,
 )
 
 @Serializable
