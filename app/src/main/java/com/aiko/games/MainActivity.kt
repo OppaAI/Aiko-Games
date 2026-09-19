@@ -960,7 +960,6 @@ private fun ShogiTrainingBoard(
             ) {
                 Text("↻ Refresh", maxLines = 1, fontSize = 12.sp)
             }
-            }
         }
 
         state.error?.let {
