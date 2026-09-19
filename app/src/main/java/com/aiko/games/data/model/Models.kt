@@ -70,8 +70,23 @@ data class SelfplayState(
     val last_winner: String = "",
     val last_end: String = "",
     val aiko_side: String = "",
+    val aiko_color: String = "",
     val aiko_wins: Int = 0,
     val engine_wins: Int = 0,
     val draws: Int = 0,
     val matches: Int = 0,
+    val game_type: String = "shogi",
+    val board_size: Int = 9,
+    val stones: List<GoStone> = emptyList(),
+    val black_points: Float = 0f,
+    val white_points: Float = 0f,
+    val aiko_pts: Int = 0,
+    val engine_pts: Int = 0,
+    val rounds: List<RoundResult> = emptyList(),
+)
+
+@Serializable
+data class RoundResult(
+    val winner: String = "",
+    val points: Int = 0,
 )

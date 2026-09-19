@@ -3,7 +3,12 @@ package com.aiko.games.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiko.games.data.ApiErrors
+import com.aiko.games.data.model.RoundResult
 import com.aiko.games.data.model.SelfplayStartRequest
+import com.aiko.games.data.model.GoStone
+import com.aiko.games.data.model.SelfplayState
+import com.aiko.games.data.remote.GoApi
+import com.aiko.games.data.remote.KoiKoiApi
 import com.aiko.games.data.remote.ShogiApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -25,65 +30,83 @@ data class SelfplayUiState(
     val lastWinner: String = "",
     val lastEnd: String = "",
     val aikoSide: String = "",
+    val aikoColor: String = "",
     val aikoWins: Int = 0,
     val engineWins: Int = 0,
     val draws: Int = 0,
     val matches: Int = 0,
+    val gameType: String = "shogi",
+    val boardSize: Int = 9,
+    val blackPoints: Float = 0f,
+    val whitePoints: Float = 0f,
+    val aikoPts: Int = 0,
+    val enginePts: Int = 0,
+    val rounds: List<RoundResult> = emptyList(),
+    val stones: List<GoStone> = emptyList(),
 )
 
-/** Aiko-vs-YaneuraOu training sessions. Polls while a session runs. */
+interface SelfplayApi {
+    suspend fun start(body: SelfplayStartRequest): SelfplayState
+    suspend fun state(): SelfplayState
+    suspend fun stop(): SelfplayState
+}
+
 class SelfplayViewModel(
-    private val api: ShogiApi,
+    private val api: SelfplayApi,
+    private val gameType: String,
 ) : ViewModel() {
 
-    private val _ui = MutableStateFlow(SelfplayUiState())
+    private val _ui = MutableStateFlow(SelfplayUiState(gameType = gameType))
     val ui: StateFlow<SelfplayUiState> = _ui.asStateFlow()
 
     private var pollJob: Job? = null
+    // Stale-response guard: polls + manual refreshes can return out of order.
+    // A snapshot applies only if it advances the game, grows the move list,
+    // or ends the run — otherwise an old response would visibly rewind moves.
+    private var lastAppliedGame = -1
+    private var lastAppliedMoves = -1
 
     private fun errorMessage(e: Exception, fallback: String): String =
         ApiErrors.message(e, fallback)
 
-    private fun applyState(
-        running: Boolean,
-        gameIndex: Int,
-        gamesTotal: Int,
-        sfen: String,
-        moves: List<String>,
-        status: String,
-        lastWinner: String,
-        lastEnd: String,
-        aikoSide: String = "",
-        aikoWins: Int,
-        engineWins: Int,
-        draws: Int,
-        matches: Int,
-    ) {
+    private fun applyApi(s: SelfplayState) {
+        val fresh = s.game_index > lastAppliedGame ||
+            (s.game_index == lastAppliedGame && s.moves.size >= lastAppliedMoves) ||
+            !s.running
+        if (!fresh) return
+        lastAppliedGame = s.game_index
+        lastAppliedMoves = s.moves.size
         _ui.update {
             it.copy(
-                running = running, gameIndex = gameIndex, gamesTotal = gamesTotal,
-                sfen = sfen, moves = moves, status = status,
-                lastWinner = lastWinner, lastEnd = lastEnd, aikoSide = aikoSide,
-                aikoWins = aikoWins, engineWins = engineWins,
-                draws = draws, matches = matches,
+                running = s.running,
+                gameIndex = s.game_index,
+                gamesTotal = s.games_total,
+                sfen = s.sfen,
+                moves = s.moves,
+                status = s.status,
+                lastWinner = s.last_winner,
+                lastEnd = s.last_end,
+                aikoSide = s.aiko_side,
+                aikoColor = s.aiko_color,
+                aikoWins = s.aiko_wins,
+                engineWins = s.engine_wins,
+                draws = s.draws,
+                matches = s.matches,
+                boardSize = s.board_size,
+                blackPoints = s.black_points,
+                whitePoints = s.white_points,
+                aikoPts = s.aiko_pts,
+                enginePts = s.engine_pts,
+                rounds = s.rounds,
+                stones = s.stones,
             )
         }
-    }
-
-    private fun applyApi(s: com.aiko.games.data.model.SelfplayState) {
-        applyState(
-            running = s.running, gameIndex = s.game_index, gamesTotal = s.games_total,
-            sfen = s.sfen, moves = s.moves, status = s.status,
-            lastWinner = s.last_winner, lastEnd = s.last_end, aikoSide = s.aiko_side,
-            aikoWins = s.aiko_wins, engineWins = s.engine_wins,
-            draws = s.draws, matches = s.matches,
-        )
     }
 
     fun refresh() {
         viewModelScope.launch {
             try {
-                applyApi(api.selfplayState())
+                applyApi(api.state())
                 _ui.update { it.copy(error = null) }
             } catch (e: Exception) {
                 _ui.update { it.copy(error = errorMessage(e, "Could not reach training session")) }
@@ -93,10 +116,12 @@ class SelfplayViewModel(
 
     fun start(games: Int = 1) {
         if (_ui.value.running || _ui.value.loading) return
+        lastAppliedGame = -1
+        lastAppliedMoves = -1
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
             try {
-                applyApi(api.selfplayStart(SelfplayStartRequest(games.coerceIn(1, 20))))
+                applyApi(api.start(SelfplayStartRequest(games.coerceIn(1, 20))))
                 _ui.update { it.copy(loading = false) }
                 startPolling()
             } catch (e: Exception) {
@@ -108,7 +133,7 @@ class SelfplayViewModel(
     fun stop() {
         viewModelScope.launch {
             try {
-                applyApi(api.selfplayStop())
+                applyApi(api.stop())
             } catch (e: Exception) {
                 _ui.update { it.copy(error = errorMessage(e, "Could not stop training")) }
             }
@@ -120,13 +145,13 @@ class SelfplayViewModel(
         pollJob = viewModelScope.launch {
             while (true) {
                 delay(2000L)
-                try {
-                    val s = api.selfplayState()
-                    applyApi(s)
-                    if (!s.running) break
-                } catch (_: Exception) {
+                val s = try {
+                    api.state()
+                } catch (e: Exception) {
                     break
                 }
+                applyApi(s)
+                if (!s.running) break
             }
         }
     }
@@ -136,3 +161,30 @@ class SelfplayViewModel(
         super.onCleared()
     }
 }
+
+fun createShogiSelfplayViewModel(api: ShogiApi): SelfplayViewModel = SelfplayViewModel(
+    api = object : SelfplayApi {
+        override suspend fun start(body: SelfplayStartRequest): SelfplayState = api.selfplayStart(body)
+        override suspend fun state(): SelfplayState = api.selfplayState()
+        override suspend fun stop(): SelfplayState = api.selfplayStop()
+    },
+    gameType = "shogi",
+)
+
+fun createGoSelfplayViewModel(api: GoApi): SelfplayViewModel = SelfplayViewModel(
+    api = object : SelfplayApi {
+        override suspend fun start(body: SelfplayStartRequest) = api.selfplayStart(body)
+        override suspend fun state() = api.selfplayState()
+        override suspend fun stop() = api.selfplayStop()
+    },
+    gameType = "go",
+)
+
+fun createKoiKoiSelfplayViewModel(api: KoiKoiApi): SelfplayViewModel = SelfplayViewModel(
+    api = object : SelfplayApi {
+        override suspend fun start(body: SelfplayStartRequest) = api.selfplayStart(body)
+        override suspend fun state() = api.selfplayState()
+        override suspend fun stop() = api.selfplayStop()
+    },
+    gameType = "koikoi",
+)

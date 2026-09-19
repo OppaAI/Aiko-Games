@@ -6,6 +6,8 @@ import com.aiko.games.data.model.GoLegalMovesResponse
 import com.aiko.games.data.model.GoMoveRequest
 import com.aiko.games.data.model.GoResignResponse
 import com.aiko.games.data.model.GoStartRequest
+import com.aiko.games.data.model.SelfplayStartRequest
+import com.aiko.games.data.model.SelfplayState
 import com.aiko.games.data.model.WarmupResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -32,4 +34,13 @@ interface GoApi {
 
     @POST("api/games/go/resign")
     suspend fun resign(): GoResignResponse
+
+    @POST("api/games/go/selfplay/start")
+    suspend fun selfplayStart(@Body body: SelfplayStartRequest = SelfplayStartRequest()): SelfplayState
+
+    @GET("api/games/go/selfplay/state")
+    suspend fun selfplayState(): SelfplayState
+
+    @POST("api/games/go/selfplay/stop")
+    suspend fun selfplayStop(): SelfplayState
 }

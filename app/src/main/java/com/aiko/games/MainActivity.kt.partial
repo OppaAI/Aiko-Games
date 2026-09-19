@@ -1,0 +1,125 @@
+@Composable
+private fun GoTrainingBoard(
+    state: SelfplayUiState,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onRefresh: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("← Back", color = ShoujoAccent, fontWeight = FontWeight.Bold) }
+            Spacer(modifier = Modifier.weight(1f))
+            Text("Go Training", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(64.dp))
+        }
+
+        val headline = when {
+            state.running && state.gamesTotal > 1 -> "Game ${state.gameIndex}/${state.gamesTotal} · ${state.moves.size} moves"
+            state.running -> "Playing · ${state.moves.size} moves"
+            state.lastWinner.isNotBlank() -> goResultLine(state.lastWinner, state.lastEnd)
+            else -> "Aiko (Jev) vs KataGo — press Start ♟️"
+        }
+        Text(headline, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
+
+        if (state.status.isNotBlank() && state.status != "idle") {
+            Text(state.status, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (state.sfen.isNotBlank()) {
+            val grid = remember(state.sfen) { GoBoard.parseGrid(state.sfen, state.boardSize) }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .aspectRatio(1f)
+                    .background(BoardWood, RoundedCornerShape(8.dp))
+                    .border(2.dp, BoardLine, RoundedCornerShape(8.dp)),
+            ) {
+                Image(
+                    painter = painterResource(GoBoard.BOARD_LIGHT_RES),
+                    contentDescription = "Go board",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.FillBounds,
+                )
+                Column(modifier = Modifier.fillMaxSize().padding(4.dp)) {
+                    for (row in 0 until state.boardSize) {
+                        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            for (col in 0 until state.boardSize) {
+                                val cell = grid[row][col]
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxSize(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (cell != null) {
+                                        Image(
+                                            painter = painterResource(GoBoard.drawableFor(cell)),
+                                            contentDescription = "Go stone",
+                                            modifier = Modifier.fillMaxSize(0.92f),
+                                            contentScale = ContentScale.Fit,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onStart, enabled = !state.running && !state.loading,
+                modifier = Modifier.weight(1f)) {
+                Text(if (state.loading) "Starting…" else "▶ Start")
+            }
+            OutlinedButton(onClick = onStop, enabled = state.running,
+                modifier = Modifier.weight(1f)) {
+                Text("⏹ Stop")
+            }
+            OutlinedButton(onClick = onRefresh, modifier = Modifier.weight(1f)) {
+                Text("↻ Refresh")
+            }
+        }
+
+        state.error?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+
+        if (state.moves.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Moves", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                state.moves.chunked(2).mapIndexed { i, pair -> "${i + 1}. ${pair.joinToString(" ")}" }
+                    .joinToString("   "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Record — Aiko ${state.aikoWins} · KataGo ${state.engineWins} · Draws ${state.draws} (${state.matches} games)",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+private fun goResultLine(winner: String, end: String): String = when (winner) {
+    "aiko" -> "Aiko won 🎉 ($end)"
+    "engine" -> "KataGo won ($end)"
+    "draw" -> "Draw ($end)"
+    else -> end.ifBlank { "idle" }
+}

@@ -72,6 +72,9 @@ import com.aiko.games.ui.HanafudaCard
 import com.aiko.games.ui.KoiKoiViewModel
 import com.aiko.games.ui.SelfplayUiState
 import com.aiko.games.ui.SelfplayViewModel
+import com.aiko.games.ui.createGoSelfplayViewModel
+import com.aiko.games.ui.createKoiKoiSelfplayViewModel
+import com.aiko.games.ui.createShogiSelfplayViewModel
 import com.aiko.games.ui.KoiUiState
 import com.aiko.games.ui.KomaImages
 import com.aiko.games.ui.monthLabel
@@ -115,6 +118,8 @@ enum class Screen {
     KoikoiGame,
     TrainingSelection,
     ShogiTraining,
+    GoTraining,
+    KoiKoiTraining,
 }
 
 class MainActivity : ComponentActivity() {
@@ -161,12 +166,30 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                 )
-                val trainingVm: SelfplayViewModel = viewModel(
-                    key = "selfplay-$baseUrl",
+                val shogiTrainingVm: SelfplayViewModel = viewModel(
+                    key = "shogi-training-$baseUrl",
                     factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                            return SelfplayViewModel(shogiApi) as T
+                            return createShogiSelfplayViewModel(shogiApi) as T
+                        }
+                    },
+                )
+                val goTrainingVm: SelfplayViewModel = viewModel(
+                    key = "go-training-$baseUrl",
+                    factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                            return createGoSelfplayViewModel(goApi) as T
+                        }
+                    },
+                )
+                val koiTrainingVm: SelfplayViewModel = viewModel(
+                    key = "koikoi-training-$baseUrl",
+                    factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                            return createKoiKoiSelfplayViewModel(koiApi) as T
                         }
                     },
                 )
@@ -176,7 +199,9 @@ class MainActivity : ComponentActivity() {
                         shogiVm = shogiVm,
                         goVm = goVm,
                         koiVm = koiVm,
-                        trainingVm = trainingVm,
+                        shogiTrainingVm = shogiTrainingVm,
+                        goTrainingVm = goTrainingVm,
+                        koiTrainingVm = koiTrainingVm,
                         baseUrl = baseUrl,
                         darkTheme = darkTheme,
                         onToggleDarkTheme = {
@@ -210,7 +235,9 @@ fun GamesApp(
     shogiVm: ShogiViewModel,
     goVm: GoViewModel,
     koiVm: KoiKoiViewModel,
-    trainingVm: SelfplayViewModel,
+    shogiTrainingVm: SelfplayViewModel,
+    goTrainingVm: SelfplayViewModel,
+    koiTrainingVm: SelfplayViewModel,
     baseUrl: String,
     darkTheme: Boolean,
     onToggleDarkTheme: () -> Unit,
@@ -219,7 +246,9 @@ fun GamesApp(
     val shogi by shogiVm.ui.collectAsState()
     val go by goVm.ui.collectAsState()
     val koi by koiVm.ui.collectAsState()
-    val training by trainingVm.ui.collectAsState()
+    val shogiTraining by shogiTrainingVm.ui.collectAsState()
+    val goTraining by goTrainingVm.ui.collectAsState()
+    val koiTraining by koiTrainingVm.ui.collectAsState()
     var screen by remember { mutableStateOf(Screen.Lobby) }
 
     LaunchedEffect(baseUrl) {
@@ -322,13 +351,29 @@ fun GamesApp(
             )
             Screen.TrainingSelection -> TrainingSelectionScreen(
                 onShogi = { screen = Screen.ShogiTraining },
+                onGo = { screen = Screen.GoTraining },
+                onKoi = { screen = Screen.KoiKoiTraining },
                 onBack = { screen = Screen.Lobby }
             )
             Screen.ShogiTraining -> ShogiTrainingBoard(
-                state = training,
-                onStart = { trainingVm.start() },
-                onStop = { trainingVm.stop() },
-                onRefresh = { trainingVm.refresh() },
+                state = shogiTraining,
+                onStart = { shogiTrainingVm.start() },
+                onStop = { shogiTrainingVm.stop() },
+                onRefresh = { shogiTrainingVm.refresh() },
+                onBack = { screen = Screen.TrainingSelection },
+            )
+            Screen.GoTraining -> GoTrainingBoard(
+                state = goTraining,
+                onStart = { goTrainingVm.start() },
+                onStop = { goTrainingVm.stop() },
+                onRefresh = { goTrainingVm.refresh() },
+                onBack = { screen = Screen.TrainingSelection },
+            )
+            Screen.KoiKoiTraining -> KoiKoiTrainingBoard(
+                state = koiTraining,
+                onStart = { koiTrainingVm.start() },
+                onStop = { koiTrainingVm.stop() },
+                onRefresh = { koiTrainingVm.refresh() },
                 onBack = { screen = Screen.TrainingSelection },
             )
             Screen.ShogiGame -> ShogiGameBoard(
@@ -486,6 +531,11 @@ private fun Lobby(
                 onClick = onGuides,
                 modifier = Modifier.fillMaxWidth(0.9f),
             ) { Text("📖 Game Guides ♡") }
+
+            OutlinedButton(
+                onClick = onTraining,
+                modifier = Modifier.fillMaxWidth(0.9f),
+            ) { Text("🏋️ Training ♡") }
 
             OutlinedButton(
                 onClick = onPreferences,
@@ -805,6 +855,8 @@ private fun GuideSelectionScreen(
 @Composable
 private fun TrainingSelectionScreen(
     onShogi: () -> Unit,
+    onGo: () -> Unit,
+    onKoi: () -> Unit,
     onBack: () -> Unit,
 ) {
     Column(
@@ -828,8 +880,8 @@ private fun TrainingSelectionScreen(
         )
 
         CuteGameCard(icon = "♟️", iconRes = KomaImages.handDrawable('P', true), title = "Shogi Training", subtitle1 = "Aiko vs YaneuraOu", subtitle2 = "Self-play · Opening book", color = CuteMint, onClick = onShogi)
-        CuteGameCard(icon = "⚫", title = "Go Training", subtitle1 = "Coming soon", subtitle2 = "KataGo self-play", color = CuteSky, onClick = {}, enabled = false)
-        CuteGameCard(icon = "🎴", title = "Koi-Koi Training", subtitle1 = "Coming soon", subtitle2 = "Hanafuda self-play", color = ShoujoPink, onClick = {}, enabled = false)
+        CuteGameCard(icon = "⚫", title = "Go Training", subtitle1 = "Aiko vs KataGo", subtitle2 = "Self-play · Opening book", color = CuteSky, onClick = onGo)
+        CuteGameCard(icon = "🎴", title = "Koi-Koi Training", subtitle1 = "Aiko vs heuristic", subtitle2 = "Self-play · Yaku race", color = ShoujoPink, onClick = onKoi)
     }
 }
 
@@ -841,8 +893,12 @@ private fun ShogiTrainingBoard(
     onRefresh: () -> Unit,
     onBack: () -> Unit,
 ) {
+    val scroll = rememberScrollState()
+    LaunchedEffect(state.moves.size) {
+        if (state.moves.isNotEmpty()) scroll.animateScrollTo(scroll.maxValue)
+    }
     Column(
-        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        modifier = Modifier.fillMaxWidth().verticalScroll(scroll),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -882,7 +938,12 @@ private fun ShogiTrainingBoard(
         Spacer(modifier = Modifier.height(6.dp))
 
         if (state.sfen.isNotBlank()) {
-            val grid = remember(state.sfen) { SfenBoard.parseGrid(state.sfen) }
+            // Aiko always sits at the bottom: flip when she plays White.
+            val flipBoard = !aikoBlack
+            val grid = remember(state.sfen, flipBoard) {
+                val g = SfenBoard.parseGrid(state.sfen)
+                if (flipBoard) g.reversed().map { it.reversed().toTypedArray() }.toTypedArray() else g
+            }
             val blackHand = remember(state.sfen) { SfenBoard.blackHand(state.sfen) }
             val whiteHand = remember(state.sfen) { SfenBoard.whiteHand(state.sfen) }
             val topHand = if (aikoBlack) whiteHand else blackHand
@@ -968,10 +1029,9 @@ private fun ShogiTrainingBoard(
 
         if (state.moves.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Moves", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text("Moves (${state.moves.size} plies)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             Text(
-                state.moves.chunked(2).mapIndexed { i, pair -> "${i + 1}. ${pair.joinToString(" ")}" }
-                    .joinToString("   "),
+                state.moves.mapIndexed { i, m -> "${i + 1}. $m" }.joinToString("  "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
             )
@@ -1934,4 +1994,198 @@ private fun KoikoiRulesScreen(onBack: () -> Unit) {
             Text("← Back to lobby ♡", color = ShoujoAccent, fontWeight = FontWeight.Bold)
         }
     }
+}
+
+@Composable
+private fun GoTrainingBoard(
+    state: SelfplayUiState,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onRefresh: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val scroll = rememberScrollState()
+    LaunchedEffect(state.moves.size) {
+        if (state.moves.isNotEmpty()) scroll.animateScrollTo(scroll.maxValue)
+    }
+    Column(
+        modifier = Modifier.fillMaxWidth().verticalScroll(scroll),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("← Back", color = ShoujoAccent, fontWeight = FontWeight.Bold) }
+            Spacer(modifier = Modifier.weight(1f))
+            Text("Go Training", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(64.dp))
+        }
+
+        val size = state.boardSize.coerceIn(9, 19).takeIf { it > 0 } ?: 9
+        val headline = when {
+            state.running && state.gamesTotal > 1 -> "Game ${state.gameIndex}/${state.gamesTotal} · ${state.moves.size} moves"
+            state.running -> "Playing · ${state.moves.size} moves"
+            state.lastWinner.isNotBlank() -> goTrainingResultLine(state.lastWinner, state.lastEnd)
+            else -> "Aiko (Jev) vs KataGo — press Start ⚫"
+        }
+        Text(headline, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
+
+        if (state.status.isNotBlank() && state.status != "idle") {
+            Text(state.status, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+        }
+        if (state.blackPoints > 0 || state.whitePoints > 0) {
+            Text("B ${state.blackPoints} · W ${state.whitePoints}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Aiko always sits at the bottom: flip both axes when she plays White.
+        val flipGo = state.aikoColor == "W"
+        val shownStones = remember(state.stones, flipGo, size) {
+            if (!flipGo) state.stones
+            else state.stones.map { it.copy(row = size - 1 - it.row, col = size - 1 - it.col) }
+        }
+        GoBoardView(
+            size = size,
+            stones = shownStones,
+            enabled = false,
+            onTap = { _, _ -> },
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Button(onClick = onStart, enabled = !state.running && !state.loading,
+                modifier = Modifier.weight(1f)) {
+                Text(if (state.loading) "Starting…" else "▶ Start", maxLines = 1, fontSize = 12.sp)
+            }
+            OutlinedButton(onClick = onStop, enabled = state.running,
+                modifier = Modifier.weight(1f)) {
+                Text("⏹ Stop", maxLines = 1, fontSize = 12.sp)
+            }
+            OutlinedButton(onClick = onRefresh, modifier = Modifier.weight(1f)) {
+                Text("↻ Refresh", maxLines = 1, fontSize = 12.sp)
+            }
+        }
+
+        state.error?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+
+        if (state.moves.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Moves (${state.moves.size} plies)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                state.moves.mapIndexed { i, m -> "${i + 1}. $m" }.joinToString("  "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Record — Aiko ${state.aikoWins} · Engine ${state.engineWins} · Draws ${state.draws} (${state.matches} games)",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+private fun goTrainingResultLine(winner: String, end: String): String = when (winner) {
+    "aiko" -> "Aiko won 🎉 ($end)"
+    "engine" -> "KataGo won ($end)"
+    "draw" -> "Draw ($end)"
+    else -> end.ifBlank { "idle" }
+}
+
+@Composable
+private fun KoiKoiTrainingBoard(
+    state: SelfplayUiState,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onRefresh: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("← Back", color = ShoujoAccent, fontWeight = FontWeight.Bold) }
+            Spacer(modifier = Modifier.weight(1f))
+            Text("Koi-Koi Training", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(64.dp))
+        }
+
+        val headline = when {
+            state.running && state.gamesTotal > 1 -> "Match ${state.gameIndex}/${state.gamesTotal} · ${state.rounds.size} rounds"
+            state.running -> "Playing · Round ${state.rounds.size + 1}"
+            state.lastWinner.isNotBlank() -> koiTrainingResultLine(state.lastWinner, state.lastEnd)
+            else -> "Aiko (Jev) vs heuristic — press Start 🌸"
+        }
+        Text(headline, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
+
+        if (state.status.isNotBlank() && state.status != "idle") {
+            Text(state.status, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+        }
+        if (state.aikoPts > 0 || state.enginePts > 0) {
+            Text("Aiko ${state.aikoPts} pts · Engine ${state.enginePts} pts",
+                style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold,
+                color = ShoujoAccent)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (state.rounds.isNotEmpty()) {
+            Text("Rounds", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            state.rounds.forEachIndexed { i, r ->
+                Text("Round ${i + 1}: ${r.winner} +${r.points}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Button(onClick = onStart, enabled = !state.running && !state.loading,
+                modifier = Modifier.weight(1f)) {
+                Text(if (state.loading) "Starting…" else "▶ Start", maxLines = 1, fontSize = 12.sp)
+            }
+            OutlinedButton(onClick = onStop, enabled = state.running,
+                modifier = Modifier.weight(1f)) {
+                Text("⏹ Stop", maxLines = 1, fontSize = 12.sp)
+            }
+            OutlinedButton(onClick = onRefresh, modifier = Modifier.weight(1f)) {
+                Text("↻ Refresh", maxLines = 1, fontSize = 12.sp)
+            }
+        }
+
+        state.error?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Record — Aiko ${state.aikoWins} · Engine ${state.engineWins} · Draws ${state.draws} (${state.matches} matches)",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+private fun koiTrainingResultLine(winner: String, end: String): String = when (winner) {
+    "aiko" -> "Aiko won 🎉 ($end)"
+    "engine" -> "Heuristic won ($end)"
+    "draw" -> "Draw ($end)"
+    else -> end.ifBlank { "idle" }
 }
