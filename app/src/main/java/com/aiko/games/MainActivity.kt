@@ -478,14 +478,14 @@ private fun Lobby(
         val busy = shogi.loading || go.loading || koi.loading
         if (!busy) {
             OutlinedButton(
-                onClick = onGuides,
-                modifier = Modifier.fillMaxWidth(0.9f),
-            ) { Text("📖 Game Guides ♡") }
-
-            OutlinedButton(
                 onClick = onTraining,
                 modifier = Modifier.fillMaxWidth(0.9f),
             ) { Text("🏋️ Training ♡") }
+
+            OutlinedButton(
+                onClick = onGuides,
+                modifier = Modifier.fillMaxWidth(0.9f),
+            ) { Text("📖 Game Guides ♡") }
 
             OutlinedButton(
                 onClick = onPreferences,
