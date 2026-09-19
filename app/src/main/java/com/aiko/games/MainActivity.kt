@@ -533,11 +533,6 @@ private fun Lobby(
             ) { Text("📖 Game Guides ♡") }
 
             OutlinedButton(
-                onClick = onTraining,
-                modifier = Modifier.fillMaxWidth(0.9f),
-            ) { Text("🏋️ Training ♡") }
-
-            OutlinedButton(
                 onClick = onPreferences,
                 modifier = Modifier.fillMaxWidth(0.9f),
             ) { Text("⚙️ Preferences ♡") }
@@ -1030,11 +1025,19 @@ private fun ShogiTrainingBoard(
         if (state.moves.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             Text("Moves (${state.moves.size} plies)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            Text(
-                state.moves.mapIndexed { i, m -> "${i + 1}. $m" }.joinToString("  "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-            )
+            val movesScroll = rememberScrollState()
+            LaunchedEffect(state.moves.size) { movesScroll.animateScrollTo(movesScroll.maxValue) }
+            Box(
+                modifier = Modifier.fillMaxWidth().height(120.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    .verticalScroll(movesScroll).padding(8.dp)
+            ) {
+                Text(
+                    state.moves.mapIndexed { i, m -> "${i + 1}. $m" }.joinToString("  "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -2078,11 +2081,19 @@ private fun GoTrainingBoard(
         if (state.moves.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             Text("Moves (${state.moves.size} plies)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            Text(
-                state.moves.mapIndexed { i, m -> "${i + 1}. $m" }.joinToString("  "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-            )
+            val movesScroll = rememberScrollState()
+            LaunchedEffect(state.moves.size) { movesScroll.animateScrollTo(movesScroll.maxValue) }
+            Box(
+                modifier = Modifier.fillMaxWidth().height(120.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    .verticalScroll(movesScroll).padding(8.dp)
+            ) {
+                Text(
+                    state.moves.mapIndexed { i, m -> "${i + 1}. $m" }.joinToString("  "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -2145,11 +2156,21 @@ private fun KoiKoiTrainingBoard(
         Spacer(modifier = Modifier.height(8.dp))
 
         if (state.rounds.isNotEmpty()) {
-            Text("Rounds", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            state.rounds.forEachIndexed { i, r ->
-                Text("Round ${i + 1}: ${r.winner} +${r.points}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+            Text("Rounds (${state.rounds.size})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            val roundsScroll = rememberScrollState()
+            LaunchedEffect(state.rounds.size) { roundsScroll.animateScrollTo(roundsScroll.maxValue) }
+            Box(
+                modifier = Modifier.fillMaxWidth().height(120.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    .verticalScroll(roundsScroll).padding(8.dp)
+            ) {
+                Column {
+                    state.rounds.forEachIndexed { i, r ->
+                        Text("Round ${i + 1}: ${r.winner} +${r.points}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
