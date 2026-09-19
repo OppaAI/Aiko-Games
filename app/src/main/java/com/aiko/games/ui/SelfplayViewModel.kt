@@ -24,6 +24,7 @@ data class SelfplayUiState(
     val status: String = "idle",
     val lastWinner: String = "",
     val lastEnd: String = "",
+    val aikoSide: String = "",
     val aikoWins: Int = 0,
     val engineWins: Int = 0,
     val draws: Int = 0,
@@ -52,6 +53,7 @@ class SelfplayViewModel(
         status: String,
         lastWinner: String,
         lastEnd: String,
+        aikoSide: String = "",
         aikoWins: Int,
         engineWins: Int,
         draws: Int,
@@ -61,7 +63,7 @@ class SelfplayViewModel(
             it.copy(
                 running = running, gameIndex = gameIndex, gamesTotal = gamesTotal,
                 sfen = sfen, moves = moves, status = status,
-                lastWinner = lastWinner, lastEnd = lastEnd,
+                lastWinner = lastWinner, lastEnd = lastEnd, aikoSide = aikoSide,
                 aikoWins = aikoWins, engineWins = engineWins,
                 draws = draws, matches = matches,
             )
@@ -72,7 +74,7 @@ class SelfplayViewModel(
         applyState(
             running = s.running, gameIndex = s.game_index, gamesTotal = s.games_total,
             sfen = s.sfen, moves = s.moves, status = s.status,
-            lastWinner = s.last_winner, lastEnd = s.last_end,
+            lastWinner = s.last_winner, lastEnd = s.last_end, aikoSide = s.aiko_side,
             aikoWins = s.aiko_wins, engineWins = s.engine_wins,
             draws = s.draws, matches = s.matches,
         )

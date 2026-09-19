@@ -869,10 +869,27 @@ private fun ShogiTrainingBoard(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Mirror the human game: whoever plays White (top side) gets their
+        // words + hand tray above the board, sente below it.
+        val aikoBlack = state.aikoSide != "white"
+        val topName = if (aikoBlack) "YaneuraOu" else "Aiko"
+        val topSide = if (aikoBlack) "後手 (White ⚪)" else "先手 (Black ⚫)"
+        val bottomName = if (aikoBlack) "Aiko" else "YaneuraOu"
+        val bottomSide = if (aikoBlack) "先手 (Black ⚫)" else "後手 (White ⚪)"
+        Text("$bottomName: $bottomSide · $topName: $topSide",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+        Spacer(modifier = Modifier.height(6.dp))
+
         if (state.sfen.isNotBlank()) {
             val grid = remember(state.sfen) { SfenBoard.parseGrid(state.sfen) }
             val blackHand = remember(state.sfen) { SfenBoard.blackHand(state.sfen) }
             val whiteHand = remember(state.sfen) { SfenBoard.whiteHand(state.sfen) }
+            val topHand = if (aikoBlack) whiteHand else blackHand
+            val bottomHand = if (aikoBlack) blackHand else whiteHand
+            HandTray(label = "$topName's hand ($topSide)", pieces = topHand, selectedPiece = null,
+                enabled = false, isOpponent = true, onPiece = {})
+            Spacer(modifier = Modifier.height(6.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
@@ -914,10 +931,8 @@ private fun ShogiTrainingBoard(
                 }
             }
             Spacer(modifier = Modifier.height(6.dp))
-            HandTray(label = "Aiko's hand", pieces = blackHand, selectedPiece = null,
+            HandTray(label = "$bottomName's hand ($bottomSide)", pieces = bottomHand, selectedPiece = null,
                 enabled = false, isOpponent = false, onPiece = {})
-            HandTray(label = "YaneuraOu's hand", pieces = whiteHand, selectedPiece = null,
-                enabled = false, isOpponent = true, onPiece = {})
         }
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
