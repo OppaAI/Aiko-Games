@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -69,6 +70,8 @@ import com.aiko.games.ui.GoViewModel
 import com.aiko.games.ui.HanafudaBack
 import com.aiko.games.ui.HanafudaCard
 import com.aiko.games.ui.KoiKoiViewModel
+import com.aiko.games.ui.SelfplayUiState
+import com.aiko.games.ui.SelfplayViewModel
 import com.aiko.games.ui.KoiUiState
 import com.aiko.games.ui.KomaImages
 import com.aiko.games.ui.monthLabel
@@ -110,6 +113,8 @@ enum class Screen {
     ShogiGame,
     GoGame,
     KoikoiGame,
+    TrainingSelection,
+    ShogiTraining,
 }
 
 class MainActivity : ComponentActivity() {
@@ -156,12 +161,22 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                 )
+                val trainingVm: SelfplayViewModel = viewModel(
+                    key = "selfplay-$baseUrl",
+                    factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                            return SelfplayViewModel(shogiApi) as T
+                        }
+                    },
+                )
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
                     GamesApp(
                         shogiVm = shogiVm,
                         goVm = goVm,
                         koiVm = koiVm,
+                        trainingVm = trainingVm,
                         baseUrl = baseUrl,
                         darkTheme = darkTheme,
                         onToggleDarkTheme = {
@@ -195,6 +210,7 @@ fun GamesApp(
     shogiVm: ShogiViewModel,
     goVm: GoViewModel,
     koiVm: KoiKoiViewModel,
+    trainingVm: SelfplayViewModel,
     baseUrl: String,
     darkTheme: Boolean,
     onToggleDarkTheme: () -> Unit,
@@ -203,6 +219,7 @@ fun GamesApp(
     val shogi by shogiVm.ui.collectAsState()
     val go by goVm.ui.collectAsState()
     val koi by koiVm.ui.collectAsState()
+    val training by trainingVm.ui.collectAsState()
     var screen by remember { mutableStateOf(Screen.Lobby) }
 
     LaunchedEffect(baseUrl) {
@@ -272,6 +289,7 @@ fun GamesApp(
                 },
                 onResumeKoi = { screen = Screen.KoikoiGame },
                 onGuides = { screen = Screen.GuideSelection },
+                onTraining = { screen = Screen.TrainingSelection },
                 onPreferences = { screen = Screen.Preferences },
             )
             Screen.Preferences -> PreferencesScreen(
@@ -301,6 +319,17 @@ fun GamesApp(
                 onGo = { screen = Screen.GoRules },
                 onKoi = { screen = Screen.KoikoiRules },
                 onBack = { screen = Screen.Lobby }
+            )
+            Screen.TrainingSelection -> TrainingSelectionScreen(
+                onShogi = { screen = Screen.ShogiTraining },
+                onBack = { screen = Screen.Lobby }
+            )
+            Screen.ShogiTraining -> ShogiTrainingBoard(
+                state = training,
+                onStart = { trainingVm.start() },
+                onStop = { trainingVm.stop() },
+                onRefresh = { trainingVm.refresh() },
+                onBack = { screen = Screen.TrainingSelection },
             )
             Screen.ShogiGame -> ShogiGameBoard(
                 state = shogi,
@@ -366,6 +395,7 @@ private fun Lobby(
     onStartKoi: () -> Unit,
     onResumeKoi: () -> Unit,
     onGuides: () -> Unit,
+    onTraining: () -> Unit,
     onPreferences: () -> Unit,
 ) {
     val scroll = rememberScrollState()
@@ -453,6 +483,11 @@ private fun Lobby(
             ) { Text("📖 Game Guides ♡") }
 
             OutlinedButton(
+                onClick = onTraining,
+                modifier = Modifier.fillMaxWidth(0.9f),
+            ) { Text("🏋️ Training ♡") }
+
+            OutlinedButton(
                 onClick = onPreferences,
                 modifier = Modifier.fillMaxWidth(0.9f),
             ) { Text("⚙️ Preferences ♡") }
@@ -506,10 +541,12 @@ private fun CuteGameCard(
     subtitle2: String,
     color: Color,
     onClick: () -> Unit,
+    enabled: Boolean = true,
 ) {
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(84.dp),
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().height(84.dp).then(if (enabled) Modifier else Modifier.alpha(0.45f)),
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = color),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -761,6 +798,171 @@ private fun GuideSelectionScreen(
         CuteGameCard(icon = "⚫", title = "Go Guide", subtitle1 = "Master the board", subtitle2 = "Rules · Capture · Ko", color = CuteSky, onClick = onGo)
         CuteGameCard(icon = "🎴", title = "Koi-Koi Guide", subtitle1 = "Play with the seasons", subtitle2 = "Hanafuda · Yaku · Match", color = ShoujoPink, onClick = onKoi)
     }
+}
+
+@Composable
+private fun TrainingSelectionScreen(
+    onShogi: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("← Back", color = ShoujoAccent, fontWeight = FontWeight.Bold) }
+            Spacer(modifier = Modifier.weight(1f))
+            Text("Training", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(64.dp))
+        }
+
+        Text(
+            "Aiko plays by herself and learns — watch her improve game by game ♡",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+        )
+
+        CuteGameCard(icon = "♟️", iconRes = KomaImages.handDrawable('P', true), title = "Shogi Training", subtitle1 = "Aiko vs YaneuraOu", subtitle2 = "Self-play · Opening book", color = CuteMint, onClick = onShogi)
+        CuteGameCard(icon = "⚫", title = "Go Training", subtitle1 = "Coming soon", subtitle2 = "KataGo self-play", color = CuteSky, onClick = {}, enabled = false)
+        CuteGameCard(icon = "🎴", title = "Koi-Koi Training", subtitle1 = "Coming soon", subtitle2 = "Hanafuda self-play", color = ShoujoPink, onClick = {}, enabled = false)
+    }
+}
+
+@Composable
+private fun ShogiTrainingBoard(
+    state: SelfplayUiState,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onRefresh: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("← Back", color = ShoujoAccent, fontWeight = FontWeight.Bold) }
+            Spacer(modifier = Modifier.weight(1f))
+            Text("Shogi Training", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(64.dp))
+        }
+
+        val headline = when {
+            state.running && state.gamesTotal > 1 -> "Game ${state.gameIndex}/${state.gamesTotal} · ${state.moves.size} moves"
+            state.running -> "Playing · ${state.moves.size} moves"
+            state.lastWinner.isNotBlank() -> selfplayResultLine(state.lastWinner, state.lastEnd)
+            else -> "Aiko (Jev) vs YaneuraOu — press Start ♟️"
+        }
+        Text(headline, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
+
+        if (state.status.isNotBlank() && state.status != "idle") {
+            Text(state.status, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (state.sfen.isNotBlank()) {
+            val grid = remember(state.sfen) { SfenBoard.parseGrid(state.sfen) }
+            val blackHand = remember(state.sfen) { SfenBoard.blackHand(state.sfen) }
+            val whiteHand = remember(state.sfen) { SfenBoard.whiteHand(state.sfen) }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .aspectRatio(458f / 500f)
+                    .background(BoardWood, RoundedCornerShape(8.dp))
+                    .border(2.dp, BoardLine, RoundedCornerShape(8.dp)),
+            ) {
+                Image(
+                    painter = painterResource(KomaImages.BOARD_LIGHT_RES),
+                    contentDescription = "Shogi board",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.FillBounds,
+                )
+                Column(modifier = Modifier.fillMaxSize().padding(4.dp)) {
+                    for (row in 0 until 9) {
+                        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            for (col in 0 until 9) {
+                                val cell = grid[row][col]
+                                Box(
+                                    modifier = Modifier.weight(1f).fillMaxSize(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (cell != null) {
+                                        val isBlack = KomaImages.isBlackSide(cell)
+                                        KomaImages.drawableFor(cell)?.let { res ->
+                                            Image(
+                                                painter = painterResource(res),
+                                                contentDescription = SfenBoard.glyph(cell) +
+                                                    if (isBlack) " (black)" else " (white)",
+                                                modifier = Modifier.fillMaxSize(0.92f),
+                                                contentScale = ContentScale.Fit,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            HandTray(label = "Aiko's hand", pieces = blackHand, selectedPiece = null,
+                enabled = false, isOpponent = false, onPiece = {})
+            HandTray(label = "YaneuraOu's hand", pieces = whiteHand, selectedPiece = null,
+                enabled = false, isOpponent = true, onPiece = {})
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onStart, enabled = !state.running && !state.loading,
+                modifier = Modifier.weight(1f)) {
+                Text(if (state.loading) "Starting…" else "▶ Start")
+            }
+            OutlinedButton(onClick = onStop, enabled = state.running,
+                modifier = Modifier.weight(1f)) {
+                Text("⏹ Stop")
+            }
+            OutlinedButton(onClick = onRefresh, modifier = Modifier.weight(1f)) {
+                Text("↻ Refresh")
+            }
+        }
+
+        state.error?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+
+        if (state.moves.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Moves", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                state.moves.chunked(2).mapIndexed { i, pair -> "${i + 1}. ${pair.joinToString(" ")}" }
+                    .joinToString("   "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Record — Aiko ${state.aikoWins} · Engine ${state.engineWins} · Draws ${state.draws} (${state.matches} games)",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+private fun selfplayResultLine(winner: String, end: String): String = when (winner) {
+    "aiko" -> "Aiko won 🎉 ($end)"
+    "engine" -> "YaneuraOu won ($end)"
+    "draw" -> "Draw ($end)"
+    else -> end.ifBlank { "idle" }
 }
 
 @Composable

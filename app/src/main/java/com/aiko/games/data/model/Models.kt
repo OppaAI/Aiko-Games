@@ -53,3 +53,24 @@ data class WarmupResponse(
     val reason: String? = null,
     val error: String? = null,
 )
+
+@Serializable
+data class SelfplayStartRequest(
+    val games: Int = 1,
+)
+
+@Serializable
+data class SelfplayState(
+    val running: Boolean = false,
+    val game_index: Int = 0,
+    val games_total: Int = 0,
+    val sfen: String = "",
+    val moves: List<String> = emptyList(),
+    val status: String = "idle",
+    val last_winner: String = "",
+    val last_end: String = "",
+    val aiko_wins: Int = 0,
+    val engine_wins: Int = 0,
+    val draws: Int = 0,
+    val matches: Int = 0,
+)
